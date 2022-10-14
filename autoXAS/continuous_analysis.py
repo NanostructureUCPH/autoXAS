@@ -15,6 +15,10 @@ from watchdog.observers import Observer
 from watchdog.events import PatternMatchingEventHandler
 # Packages for managing notebook and IPython features
 from IPython.display import clear_output
+# Importing functions from the other scripts
+from autoXAS.data import *
+from autoXAS.LCA import *
+from autoXAS.plotting import *
 
 #%% Watching directory for changes
 
