@@ -1,2 +1,2 @@
 # autoXAS
-Automatic analysis of X-ray Absorption Spectroscopy (XAS) data
+Automated analysis of X-ray Absorption Spectroscopy (XAS) data
