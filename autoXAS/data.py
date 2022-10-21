@@ -10,8 +10,9 @@ from typing import Union
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 from pathlib import Path
-from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
-# from tqdm import tqdm
+from itertools import islice
+# from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
+from tqdm import tqdm
 #XAS specfific packages
 from larch.xray import xray_edge
 from larch.xafs import pre_edge, find_e0
@@ -513,3 +514,43 @@ def average_measurements(
     # Combine all experiments into one dataframe
     df_avg = pd.concat(list_of_df)
     return df_avg
+
+#%% File splitting
+
+def split_dat_file(
+    data_folder: str,
+    filename: str,
+    header_length: int,
+    data_length: int,
+    footer_length: int,
+    file_extension: str='.dat',
+    save_folder: Union[str, None]=None,
+) -> None:
+    """Function that splits a data file containing multiple measurements into individual files.
+
+    Args:
+        data_folder (str): The path to the folder containing the file to split.
+        filename (str): The name of the file to split.
+        header_length (int): The number of lines in the header.
+        data_length (int): The number of lines containing data.
+        footer_length (int): The number of lines in the footer.
+        file_extension (str, optional): The type of file to split. It should work for common non-binary formats like txt, csv, dat, etc. Defaults to '.dat'.
+        save_folder (Union[str, None], optional): The path to the folder to save the new files in. If "None" a subfolder will be created named after the split file. Defaults to None.
+
+    Returns:
+        None
+    """
+    file = data_folder + filename + file_extension
+    if save_folder == None:
+        # Where to save the data
+        save_folder = data_folder + filename + '_split/'
+    # Create save folder
+    Path(save_folder).mkdir(parents=True, exist_ok=True)
+    # Define the number of lines to save in each file
+    file_length = header_length + data_length + footer_length
+    # Split the file and save as new files
+    with open(file) as f:
+        for i, measurement in enumerate(iter(lambda:list(islice(f, file_length)), []), 1):
+            with open(f'{save_folder}{filename}_{i}{file_extension}', 'w') as split:
+                split.writelines(measurement)
+    return None

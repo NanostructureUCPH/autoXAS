@@ -7,8 +7,8 @@ from typing import Union
 # Packages for handling data
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
-from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
-# from tqdm import tqdm
+# from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
+from tqdm import tqdm
 # Packages for fitting
 from lmfit import Parameters, fit_report, minimize
 from lmfit.minimizer import MinimizerResult
