@@ -70,7 +70,7 @@ def plot_non_normalized_xas(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8))
         # Plot the measurements of the selected experiment/edge
         sns.lineplot(
             data=df[(df['Experiment'] == experiment)], 
@@ -110,6 +110,8 @@ def plot_non_normalized_xas(
             )
         # Specify placement, formatting and title of the legend
         plt.legend( 
+            loc='center left', 
+            bbox_to_anchor=(1,0.5),
             title='Measurement', 
             fontsize=12, 
             title_fontsize=13, 
@@ -225,7 +227,7 @@ def plot_data(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8))
         # Plot metal foil if provided
         if type(foils) != type(None):
             # Check if the metal foil exists in the dataset
@@ -290,8 +292,8 @@ def plot_data(
             )
         # Set limits of x-axis to match the edge measurements
         plt.xlim(
-            (np.amin(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == 1)]), 
-            np.amax(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == 1)]))
+            (np.amin(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == np.amin(data['Measurement']))]), 
+            np.amax(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == np.amin(data['Measurement']))]))
             )
         # Specify text and formatting of axis labels
         plt.xlabel(
@@ -306,11 +308,12 @@ def plot_data(
             )
         # Specify placement, formatting and title of the legend
         plt.legend(
-            loc='lower right', 
+            loc='center left', 
+            bbox_to_anchor=(1,0.5),
             title='Measurement', 
             fontsize=12, 
             title_fontsize=13, 
-            ncol=1
+            ncol=1,
             )
         # Enforce matplotlibs tight layout
         plt.tight_layout()
@@ -421,8 +424,8 @@ def plot_data(
                     ))
         # Set limits of x-axis to match the edge measurements
         fig.update_xaxes(
-            range=[np.amin(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == 1)]), 
-            np.amax(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == 1)])]
+            range=[np.amin(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == np.amin(data['Measurement']))]), 
+            np.amax(data['Energy_Corrected'][(data['Metal'] == metal) & (data['Measurement'] == np.amin(data['Measurement']))])]
             )
         # Specify text and formatting of axis labels
         fig.update_layout(
@@ -1007,7 +1010,7 @@ def plot_temperatures(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8))
         # Plot temperature curves
         sns.lineplot(
             data=df,
@@ -1053,6 +1056,8 @@ def plot_temperatures(
             )
         # Specify placement, formatting and title of the legend
         plt.legend(
+            loc='center left', 
+            bbox_to_anchor=(1,0.5),
             title='Metal',
             fontsize=12,
             title_fontsize=13,
@@ -1444,7 +1449,7 @@ def plot_LCA_change(
         # Define colors to use
         color_list = sns.color_palette('colorblind').as_hex() 
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8))
         # Create filter for relevant values
         df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) & (df['Intermediate'] == intermediate)
         # Plot weights for the two components for each measurement
@@ -1514,6 +1519,8 @@ def plot_LCA_change(
             )
         # Specify placement, formatting and title of the legend
         plt.legend(
+            loc='center left', 
+            bbox_to_anchor=(1,0.5),
             labels=[product, precursor, intermediate], 
             title='Components',
             fontsize=12,
@@ -1684,7 +1691,7 @@ def plot_reduction_comparison(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8))
         # Plot the weight of the foil component for all metal + precursor combinations
         if precursor_type == 'all':
             df_filter = (df['Parameter'] == 'foil_weight')
@@ -1763,6 +1770,8 @@ def plot_reduction_comparison(
             )
         # Specify placement, formatting and title of the legend
         plt.legend(
+            loc='center left', 
+            bbox_to_anchor=(1,0.5),
             labels=df['Experiment'][df_filter].unique(), 
             title='Components',
             fontsize=12,
