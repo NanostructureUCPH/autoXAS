@@ -10,8 +10,8 @@ from typing import Union
 import pandas as pd
 pd.options.mode.chained_assignment = None  # default='warn'
 from pathlib import Path
-# from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
-from tqdm import tqdm
+from tqdm.auto import tqdm # Use as standard. If progress bar is not rendering use normal tqdm below.
+# from tqdm import tqdm
 #XAS specfific packages
 from larch.xray import xray_edge
 from larch.xafs import pre_edge, find_e0
