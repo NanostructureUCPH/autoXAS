@@ -1022,7 +1022,7 @@ def plot_temperatures(
             palette='colorblind',
         )
         # Create filter for relevant values
-        avg_filter = (df['Parameter'] == 'foil_weight') & (df['Precursor Type'] == df['Precursor Type'].mode().to_list()[0]) & (df['Metal'] == df['Metal'].unique().tolist()[0])
+        avg_filter = (df['Parameter'] == 'product_weight') & (df['Precursor Type'] == df['Precursor Type'].mode().to_list()[0]) & (df['Metal'] == df['Metal'].unique().tolist()[0])
         # Plot temperature average
         sns.lineplot(
             data=df[avg_filter],
@@ -1073,7 +1073,7 @@ def plot_temperatures(
         # Formatting of the hover label "title"
         x_formatting = '.0f'
         # Create filter for relevant values
-        df_filter = (df['Parameter'] == 'foil_weight') & (df['Precursor Type'] == df['Precursor Type'].mode().to_list()[0])
+        df_filter = (df['Parameter'] == 'product_weight') & (df['Precursor Type'] == df['Precursor Type'].mode().to_list()[0])
         # Plot the measurements of the selected experiment/edge
         fig = px.line(
             data_frame=df[df_filter],
@@ -1451,7 +1451,9 @@ def plot_LCA_change(
         # Create figure object and set the figure size
         plt.figure(figsize=(10,8))
         # Create filter for relevant values
-        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) & (df['Intermediate'] == intermediate)
+        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
+        if intermediate != None:
+            df_filter = df_filter & (df['Intermediate'] == intermediate)
         # Plot weights for the two components for each measurement
         sns.lineplot(
             data=df[df_filter],
@@ -1518,10 +1520,13 @@ def plot_LCA_change(
             fontweight='bold'
             )
         # Specify placement, formatting and title of the legend
+        labels = [product, precursor]
+        if intermediate != None:
+            labels = [product, intermediate, precursor]
         plt.legend(
             loc='center left', 
             bbox_to_anchor=(1,0.5),
-            labels=[product, precursor, intermediate], 
+            labels=labels, 
             title='Components',
             fontsize=12,
             title_fontsize=13,
@@ -1542,7 +1547,9 @@ def plot_LCA_change(
         y_min = -0.02
         y_max = 1.02
         # Create filter for relevant values
-        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) #& (df['Intermediate'] == intermediate)
+        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
+        if intermediate != None:
+            df_filter = df_filter & (df['Intermediate'] == intermediate)
         # Plot the LCA weights over time
         fig = px.line(
             data_frame=df[df_filter],
@@ -1694,7 +1701,7 @@ def plot_reduction_comparison(
         plt.figure(figsize=(10,8))
         # Plot the weight of the foil component for all metal + precursor combinations
         if precursor_type == 'all':
-            df_filter = (df['Parameter'] == 'foil_weight')
+            df_filter = (df['Parameter'] == 'product_weight')
             sns.lineplot(
                 data=df[df_filter], 
                 x=x_axis,
@@ -1710,7 +1717,7 @@ def plot_reduction_comparison(
             # Check if the precursor type exists in the dataset
             assert precursor_type in df['Precursor Type'].unique(), f'No precursor type with the name: {precursor_type}\n\nValid values are: {df["Precursor Type"].unique()}'
             # Create filter for relevant values
-            df_filter = (df['Parameter'] == 'foil_weight') & (df['Precursor'].str.contains(precursor_type))
+            df_filter = (df['Parameter'] == 'product_weight') & (df['Precursor'].str.contains(precursor_type))
             sns.lineplot(
                 data=df[df_filter], 
                 x=x_axis,
@@ -1793,7 +1800,7 @@ def plot_reduction_comparison(
         fig = go.Figure()
         # Plot the weight of the foil component for all metal + precursor combinations
         if precursor_type == 'all':
-            df_filter = (df['Parameter'] == 'foil_weight')
+            df_filter = (df['Parameter'] == 'product_weight')
             # Plot the LCA weights over time
             for i, metal in enumerate(df['Metal'][df_filter].unique()):
                 # Loop over each relevant precursor for each metal
@@ -1827,7 +1834,7 @@ def plot_reduction_comparison(
             # Check if the precursor type exists in the dataset
             assert precursor_type in df['Precursor Type'].unique(), f'No precursor type with the name: {precursor_type}\n\nValid values are: {df["Precursor Type"].unique()}'
             # Create filter for relevant values
-            df_filter = (df['Parameter'] == 'foil_weight') & (df['Precursor'].str.contains(precursor_type))
+            df_filter = (df['Parameter'] == 'product_weight') & (df['Precursor'].str.contains(precursor_type))
             # Plot the LCA weights over time
             for i, metal in enumerate(df['Metal'][df_filter].unique()):
                 # Create filter for relevant values
