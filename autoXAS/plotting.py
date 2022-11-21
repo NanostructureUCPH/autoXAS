@@ -445,6 +445,7 @@ def plot_data(
         fig.show()
     return None
 
+# TODO: Make backup strategy to plot this using interpolation to ensure samples at the same energies
 def plot_insitu_waterfall(
     data: pd.DataFrame, 
     experiment: str, 
@@ -454,6 +455,7 @@ def plot_insitu_waterfall(
     y_axis: str='Measurement',
     time_unit: str='seconds',
     interactive: bool=False, 
+    homogenize_measurements: bool=False,
     save_plot: bool=False, 
     save_name: str='in-situ_waterfall.png'
 ) -> None:
@@ -524,8 +526,17 @@ def plot_insitu_waterfall(
     # Create arrays for hover data
     if interactive:
         n_rows = df_plot['Measurement'].unique().shape[0]
-        measurement_array = df_plot['Measurement'].to_numpy().reshape(n_rows, -1)
-        time_array = (df_plot['Relative Time'] / unit_conversion).astype(dtype=time_dtype).to_numpy().reshape(n_rows, -1)
+        measurement_array = df_plot['Measurement'].to_numpy().reshape((n_rows, -1))
+        time_array = (df_plot['Relative Time'] / unit_conversion).astype(dtype=time_dtype).to_numpy().reshape((n_rows, -1))
+    # Create homogeneous value grid for plotting purposes
+    if homogenize_measurements:
+        energy_min = np.amin(df_plot['Energy_Corrected'])
+        energy_max = np.amax(df_plot['Energy_Corrected'])
+        energy_range = np.linspace(energy_min, energy_max, num=len(df_plot[df_plot['Measurement'] == 1]))
+        for measurement in df_plot['Measurement'].unique():
+            df_homofilter = (df_plot['Measurement'] == measurement)
+            df_plot['Normalized'][df_homofilter] = np.interp(energy_range, df_plot['Energy_Corrected'][df_homofilter], df_plot['Normalized'][df_homofilter])
+            df_plot['Energy_Corrected'][df_homofilter] = energy_range
     # Create pivot table of relevant data
     heatmap_data = df_plot.pivot('Plotting Y', 'Energy_Corrected', 'Normalized')
     # Make figure using matplotlib and seaborn
@@ -707,6 +718,7 @@ def plot_insitu_change(
     y_axis: str='Measurement',
     time_unit: str='seconds',
     interactive: bool=False, 
+    homogenize_measurements: bool=False,
     save_plot: bool=False, 
     save_name: str='in-situ_change.png'
 ) -> None:
@@ -737,9 +749,9 @@ def plot_insitu_change(
     # Extract the reference measurement
     reference_data = df_change['Normalized'][(data['Measurement'] == reference_measurement)].to_numpy()
     # Substract reference from all measurements
-    difference_from_reference = df_change['Normalized'].to_numpy().reshape(-1, reference_data.shape[0]) - reference_data
+    difference_from_reference = df_change['Normalized'].to_numpy().reshape((-1, reference_data.shape[0])) - reference_data
     # Make new column for differences
-    df_change['ref_delta'] = difference_from_reference.reshape(-1)
+    df_change['ref_delta'] = difference_from_reference.reshape((-1))
     # Ensure time unit is all lowercase
     time_unit = time_unit.lower()
     # Set unit specific parameters
@@ -784,8 +796,17 @@ def plot_insitu_change(
     # Create arrays for hover data
     if interactive:
         n_rows = df_change['Measurement'].unique().shape[0]
-        measurement_array = df_change['Measurement'].to_numpy().reshape(n_rows, -1)
-        time_array = (df_change['Relative Time'] / unit_conversion).astype(dtype=time_dtype).to_numpy().reshape(n_rows, -1)
+        measurement_array = df_change['Measurement'].to_numpy().reshape((n_rows, -1))
+        time_array = (df_change['Relative Time'] / unit_conversion).astype(dtype=time_dtype).to_numpy().reshape((n_rows, -1))
+    # Create homogeneous value grid for plotting purposes
+    if homogenize_measurements:
+        energy_min = np.amin(df_change['Energy_Corrected'])
+        energy_max = np.amax(df_change['Energy_Corrected'])
+        energy_range = np.linspace(energy_min, energy_max, num=len(df_change[df_change['Measurement'] == 1]))
+        for measurement in df_change['Measurement'].unique():
+            df_homofilter = (df_change['Measurement'] == measurement)
+            df_change['Normalized'][df_homofilter] = np.interp(energy_range, df_change['Energy_Corrected'][df_homofilter], df_change['Normalized'][df_homofilter])
+            df_change['Energy_Corrected'][df_homofilter] = energy_range
     # Create pivot table of relevant data
     heatmap_data = df_change.pivot('Plotting Y', 'Energy_Corrected', 'ref_delta')
     # Make figure using matplotlib and seaborn

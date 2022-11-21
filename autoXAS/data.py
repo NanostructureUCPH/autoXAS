@@ -290,6 +290,7 @@ def processing_df(
         df_new['Temperature'] = df['Nanodac']
         df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['MonEx'].to_numpy()
         df_new['Transmission'] = np.log(df_new['MonEx'].to_numpy() / df_new['Ion1'].to_numpy())
+        df_new['Relative Time'] = 0
     elif synchrotron in ['BALDER']:
         # Select the relevant columns
         df_new = df[['Filename', 'Experiment', 'Measurement', 'Start Time', 'End Time', 'albaem01_ch1', 'albaem01_ch2', 'albaem02_ch3', 'albaem02_ch4']]
