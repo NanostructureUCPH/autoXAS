@@ -432,6 +432,8 @@ def LCA_internal(
                             list_stderrors.append(param.stderr)
                             list_energy_range.append(data_range)
                             # Error estimation of the dependent parameter (precursor_weight) is inconsistent when close to the maximum allowed values
+                            if not param.stderr:
+                                param.stderr = 0
                             if name == 'precursor_weight' and (param.value >= 0.99 or param.stderr > 1.):
                                 list_stderrors_corrected.append(list_stderrors[-2])
                             else:

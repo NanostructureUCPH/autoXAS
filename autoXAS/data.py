@@ -402,7 +402,7 @@ def normalize_data(
     else:
         data_type = 'Absorption'
     # Iterate over each experiment
-    for experiment in df['Experiment'].unique():
+    for experiment in tqdm(df['Experiment'].unique(), desc='Normalization progress: '):
         # Select only relevant values
         exp_filter = (df['Experiment'] == experiment)
         # Measured metal
@@ -410,7 +410,7 @@ def normalize_data(
         # Correct for the energy shift at the edge
         df['Energy_Corrected'][exp_filter] = df['Energy'][exp_filter] + edge_correction_energies[metal]
         # Iterate over each measurement
-        for measurement_id in df['Measurement'][exp_filter].unique():
+        for measurement_id in tqdm(df['Measurement'][exp_filter].unique(), leave=False, desc=f'Normalizing {metal}: '):
             # Select only relevant values
             df_filter = (df['Experiment'] == experiment) & (df['Measurement'] == measurement_id)
             # Create dummy Group to collect post edge fit
