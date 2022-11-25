@@ -1178,6 +1178,7 @@ def plot_LCA(
     data: pd.DataFrame, 
     experiment: str, 
     measurement: int, 
+    metal: Union[str, None]=None,
     interactive: bool=False, 
     save_plot: bool=False, 
     save_name: str='LCA_plot.png'
@@ -1208,12 +1209,14 @@ def plot_LCA(
         intermediate = None
     elif len(components) == 3:
         precursor, intermediate, product = components
+    if not metal:
+        metal = results['Metal'][results['Experiment'] == experiment].unique()[0]
     # Create filters for relevant values
-    data_filter = (data['Experiment'] == data['Experiment'][data['Metal'] == results['Metal'][results['Experiment'] == experiment].unique()[0]].unique()[0]) & (data['Measurement'] == measurement)
-    product_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'product_weight') & (results['Measurement'] == measurement)
-    precursor_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'precursor_weight') & (results['Measurement'] == measurement)
+    data_filter = (data['Experiment'] == data['Experiment'][data['Metal'] == metal].unique()[0]) & (data['Metal'] == metal) & (data['Measurement'] == measurement)
+    product_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'product_weight') & (results['Measurement'] == measurement) & (results['Metal'] == metal)
+    precursor_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'precursor_weight') & (results['Measurement'] == measurement) & (results['Metal'] == metal)
     if intermediate != None:
-        intermediate_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'intermediate_weight') & (results['Measurement'] == measurement)
+        intermediate_filter = (results['Experiment'] == experiment) & (results['Parameter'] == 'intermediate_weight') & (results['Measurement'] == measurement) & (results['Metal'] == metal)
     # Scale the basis functions with their component weight
     product_component = (results['Value'][product_filter].to_numpy() * results['Basis Function'][product_filter].to_numpy())[0]
     precursor_component = (results['Value'][precursor_filter].to_numpy() * results['Basis Function'][precursor_filter].to_numpy())[0]
