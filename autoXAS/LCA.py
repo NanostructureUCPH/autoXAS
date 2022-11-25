@@ -334,8 +334,8 @@ def LCA_internal(
     initial_state_index: int=0, 
     final_state_index: int=-1, 
     intermediate_state_index: Union[int, None]=None,
-    fit_min: Union[float, int, None]=None,
-    fit_max: Union[float, int, None]=None,
+    fit_min: Union[float, int]=0,
+    fit_max: Union[float, int]=np.inf,
     verbose: bool=False, 
     return_dataframe: bool=True
 ) -> Union[pd.DataFrame, list[MinimizerResult]]:
@@ -374,19 +374,18 @@ def LCA_internal(
     list_stderrors_corrected = []
     list_energy_range = []
     list_basis_functions = []
+    if final_state_index == -1:
+        final_state_name = 'last'
+        final_state_index = np.amax(data['Measurement'])
+    else:
+        final_state_name = final_state_index
     # Create progress bar for LCA progress
     with tqdm(data['Metal'].unique(), desc='LCA progress: ') as pbar_metal:
         # Loop over all metal edges
         for metal in data['Metal'].unique():
-            if intermediate_state_index == None:
+            if not intermediate_state_index:
                 # Update descriptive text on progress bar
                 pbar_metal.set_postfix_str(f'Analysing frame {initial_state_index} + {final_state_index}')
-                # Select relevant values
-                reference_filter = (data['Metal'] == metal) & (data['Energy_Corrected'] >= fit_min) & (data['Energy_Corrected'] <= fit_max)
-                # Select the inital state measurement
-                initial_basis = data['Normalized'][reference_filter & (data['Measurement'] == initial_state_index)].to_numpy()
-                # Select the final state measurement
-                final_basis = data['Normalized'][reference_filter & (data['Measurement'] == final_state_index)].to_numpy()
                 # Loop over all measurements
                 with tqdm(data['Measurement'][data['Metal'] == metal].unique(), leave=False, desc=f'Frame {initial_state_index} + {final_state_index}', mininterval=0.01) as pbar_measurement:
                     for measurement in data['Measurement'][data['Metal'] == metal].unique():
@@ -400,6 +399,11 @@ def LCA_internal(
                         data_to_fit = data['Normalized'][data_filter & data['Energy_Corrected'].isin(data_range)].to_numpy()
                         # Extract the temperature
                         temperature = np.median(data['Temperature'][data_filter])
+                        # Select the reference data
+                        initial_filter = (data['Metal'] == metal) & (data['Measurement'] == initial_state_index)
+                        initial_basis = np.interp(data_range, data['Energy_Corrected'][initial_filter], data['Normalized'][initial_filter])
+                        final_filter = (data['Metal'] == metal) & (data['Measurement'] == final_state_index)
+                        final_basis = np.interp(data_range, data['Energy_Corrected'][final_filter], data['Normalized'][final_filter])
                         # Group the two basis functions
                         basis_functions = [final_basis, initial_basis]
                         # Initialize the fit parameters
@@ -415,9 +419,9 @@ def LCA_internal(
                             raise Exception(f'Error occurred when fitting measurement {measurement} with frame {initial_state_index} + {final_state_index}.')
                         # Save the values needed for the results Dataframe
                         for name, param in fit_out.params.items():
-                            list_experiments.append(f'Frame {initial_state_index} + {final_state_index}')
+                            list_experiments.append(f'Frame {initial_state_index} + {final_state_name}')
                             list_metals.append(metal)
-                            list_products.append(final_state_index)
+                            list_products.append(final_state_name)
                             list_intermediates.append(intermediate_state_index)
                             list_precursors.append(initial_state_index)
                             list_precursor_types.append('Internal')
@@ -440,17 +444,9 @@ def LCA_internal(
                             print('\n')
                         # Update pbar
                         pbar_metal.update()
-            elif intermediate_state_index != None:
+            elif intermediate_state_index:
                 # Update descriptive text on progress bar
                 pbar_metal.set_postfix_str(f'Analysing frame {initial_state_index} + {intermediate_state_index} + {final_state_index}')
-                # Select relevant values
-                reference_filter = (data['Metal'] == metal) & (data['Energy_Corrected'] >= fit_min) & (data['Energy_Corrected'] <= fit_max)
-                # Select the inital state measurement
-                initial_basis = data['Normalized'][reference_filter & (data['Measurement'] == initial_state_index)].to_numpy()
-                # Select the intermediate state measurement
-                intermediate_basis = data['Normalized'][reference_filter & (data['Measurement'] == intermediate_state_index)].to_numpy()
-                # Select the final state measurement
-                final_basis = data['Normalized'][reference_filter & (data['Measurement'] == final_state_index)].to_numpy()
                 # Loop over all measurements
                 with tqdm(data['Measurement'][data['Metal'] == metal].unique(), leave=False, desc=f'Frame {initial_state_index} + {intermediate_state_index} + {final_state_index}', mininterval=0.01) as pbar_measurement:
                     for measurement in pbar_measurement:
@@ -464,6 +460,13 @@ def LCA_internal(
                         data_to_fit = data['Normalized'][data_filter & data['Energy_Corrected'].isin(data_range)].to_numpy()
                         # Extract the temperature
                         temperature = np.median(data['Temperature'][data_filter])
+                        # Select the reference data
+                        initial_filter = (data['Metal'] == metal) & (data['Measurement'] == initial_state_index)
+                        initial_basis = np.interp(data_range, data['Energy_Corrected'][initial_filter], data['Normalized'][initial_filter])
+                        intermediate_filter = (data['Metal'] == metal) & (data['Measurement'] == intermediate_state_index)
+                        intermediate_basis = np.interp(data_range, data['Energy_Corrected'][intermediate_filter], data['Normalized'][intermediate_filter])
+                        final_filter = (data['Metal'] == metal) & (data['Measurement'] == final_state_index)
+                        final_basis = np.interp(data_range, data['Energy_Corrected'][final_filter], data['Normalized'][final_filter])
                         # Group the basis functions
                         basis_functions = [final_basis, intermediate_basis, initial_basis]
                         # Initialize the fit parameters
@@ -480,9 +483,9 @@ def LCA_internal(
                             raise Exception(f'Error occurred when fitting measurement {measurement} with frame {initial_state_index} + {intermediate_state_index} + {final_state_index}.')
                         # Save the values needed for the results Dataframe
                         for name, param in fit_out.params.items():
-                            list_experiments.append(f'Frame {initial_state_index} + {intermediate_state_index} + {final_state_index}')
+                            list_experiments.append(f'Frame {initial_state_index} + {intermediate_state_index} + {final_state_name}')
                             list_metals.append(metal)
-                            list_products.append(final_state_index)
+                            list_products.append(final_state_name)
                             list_intermediates.append(intermediate_state_index)
                             list_precursors.append(initial_state_index)
                             list_precursor_types.append('Internal')

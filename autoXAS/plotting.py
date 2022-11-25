@@ -1434,6 +1434,7 @@ def plot_LCA_change(
     product: str, 
     precursor: str, 
     intermediate: Union[str, None]=None,
+    metal: Union[str, None]=None,
     x_axis: str='Measurement', 
     with_uncertainty: bool=True, 
     interactive: bool=False, 
@@ -1472,8 +1473,11 @@ def plot_LCA_change(
         # Create figure object and set the figure size
         plt.figure(figsize=(10,8))
         # Create filter for relevant values
-        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
-        if intermediate != None:
+        if metal:
+            df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) & (df['Metal'] == metal)
+        else:
+            df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
+        if intermediate:
             df_filter = df_filter & (df['Intermediate'] == intermediate)
         # Plot weights for the two components for each measurement
         sns.lineplot(
@@ -1568,8 +1572,11 @@ def plot_LCA_change(
         y_min = -0.02
         y_max = 1.02
         # Create filter for relevant values
-        df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
-        if intermediate != None:
+        if metal:
+            df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) & (df['Metal'] == metal)
+        else:
+            df_filter = (df['Product'] == product) & (df['Precursor'] == precursor) 
+        if intermediate:
             df_filter = df_filter & (df['Intermediate'] == intermediate)
         # Plot the LCA weights over time
         fig = px.line(
@@ -1797,14 +1804,18 @@ def plot_reduction_comparison(
             fontweight='bold'
             )
         # Specify placement, formatting and title of the legend
+        if 'Internal' in df['Precursor Type'][df_filter].unique():
+            labels_list = df['Metal'][df_filter].unique()
+        else:
+            labels_list = df['Experiment'][df_filter].unique()
         plt.legend(
             loc='center left', 
             bbox_to_anchor=(1,0.5),
-            labels=df['Experiment'][df_filter].unique(), 
+            labels=labels_list, 
             title='Components',
             fontsize=12,
             title_fontsize=13,
-            )
+        )
         # Enforce matplotlibs tight layout
         plt.tight_layout()
         # Save plot as a png
@@ -1836,13 +1847,18 @@ def plot_reduction_comparison(
                     else:
                         linestyle = 'dash'
                         legend_group = None
+                    # Create line label
+                    if 'Internal' in df['Precursor Type'][df_filter].unique():
+                        name_string = f'{metal}'
+                    else:
+                        name_string = f'{metal} + {precursor_type}'
                     # Plot the trace
                     fig.add_trace(
                         go.Scatter(
                             x=df[x_axis][foil_filter], 
                             y=df['Value'][foil_filter], 
                             mode='lines',
-                            name=f'{metal} + {precursor_type}',
+                            name=name_string,
                             line_color=f'rgba{sns.color_palette("colorblind")[i]}',
                             legendgroup=legend_group,
                             line_dash=linestyle,
@@ -1863,13 +1879,18 @@ def plot_reduction_comparison(
                 linestyle = 'solid'
                 # Used to link line and the corresponding uncertainty
                 legend_group = f'{metal}'
+                # Create line label
+                if 'Internal' in df['Precursor Type'][df_filter].unique():
+                    name_string = f'{metal}'
+                else:
+                    name_string = f'{metal} + {precursor_type}'
                 # Plot the trace
                 fig.add_trace(
                     go.Scatter(
                         x=df[x_axis][foil_filter], 
                         y=df['Value'][foil_filter], 
                         mode='lines',
-                        name=f'{metal} + {precursor_type}',
+                        name=name_string,
                         line_color=f'rgba{sns.color_palette("colorblind")[i]}',
                         legendgroup=legend_group,
                         line_dash=linestyle,
