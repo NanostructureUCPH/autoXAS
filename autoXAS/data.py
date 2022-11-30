@@ -43,10 +43,10 @@ def load_xas_data(
         pd.DataFrame: The raw data from the .dat files.
     """    
     # List of the synchrotrons which the function can load data from
-    implemented = ['ESRF', 'BALDER', 'BALDER_2']
+    implemented = ['ESRF', 'BALDER', 'BALDER_2', 'SNBL']
     # Check the data format can be handled
     assert synchrotron in implemented, f'Loading of data from {synchrotron} is not implemented. The implemented synchrotrons are:\n\t{implemented}\n\nIf you want the loading of data from a specific facility implemented contact me at ufj@chem.ku.dk or submit a request at [github link].'
-    if synchrotron in ['ESRF', 'BALDER', 'BALDER_2']:
+    if synchrotron in ['ESRF', 'BALDER', 'BALDER_2', 'SNBL']:
         # Reads all the correct files
         if type(file_selection_condition) == list:
             if negated_condition:
@@ -137,11 +137,13 @@ def load_xas_data(
                     end_time = datetime.strptime(end_time, time_format)
                     # Save the end time
                     df['End Time'] = end_time
-            elif synchrotron in ['ESRF', 'BALDER_2']:
+            elif synchrotron in ['ESRF', 'BALDER_2', 'SNBL']:
                 # Detect what data belongs to different measurements
                 # Find the difference in time since measurement started
                 if synchrotron in ['ESRF']:
                     difference = df['Htime'].diff()
+                elif synchrotron in ['SNBL']:
+                    difference = df['ZapEnergy'].diff()
                 elif synchrotron in ['BALDER_2']:
                     difference = df['dt'].diff()
                     # Create lists to hold times
@@ -267,7 +269,7 @@ def processing_df(
         pd.DataFrame: The cleaned and preprocessed data.
     """    
      # List of the synchrotrons which the function can load data from
-    implemented = ['ESRF', 'BALDER', 'BALDER_2']
+    implemented = ['ESRF', 'BALDER', 'BALDER_2', 'SNBL']
     # Check the data format can be handled
     assert synchrotron in implemented, f'Loading of data from {synchrotron} is not implemented. The implemented synchrotrons are:\n\t{implemented}\n\nIf you want the loading of data from a specific facility implemented contact me at ufj@chem.ku.dk or submit a request at [github link].'
     if synchrotron in ['ESRF']:
@@ -290,6 +292,49 @@ def processing_df(
         df_new['Temperature'] = df['Nanodac']
         df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['MonEx'].to_numpy()
         df_new['Transmission'] = np.log(df_new['MonEx'].to_numpy() / df_new['Ion1'].to_numpy())
+        df_new['Relative Time'] = 0
+    elif synchrotron in ['BALDER']:
+        # Select the relevant columns
+        df_new = df[['Filename', 'Experiment', 'Measurement', 'Start Time', 'End Time', 'albaem01_ch1', 'albaem01_ch2', 'albaem02_ch3', 'albaem02_ch4']]
+        # Assign the measured metal or infer from file
+        if metal != None:
+            df_new['Metal'] = metal
+            # Re-assign the experiment name
+            df_new['Experiment'] = metal
+        else:
+            raise ValueError('The measured metal can not be inferred from the data format at BALDER')
+        # Assign the measured precursor counter-ion. It can not be inferred from file
+        df_new['Precursor'] = precursor
+        if precursor != None:
+            # Re-assign the experiment name
+            df_new['Experiment'] += df_new['Precursor']
+        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        df_new['Relative Time'] = (df_new['Start Time'] - df_new['Start Time'][0]).dt.total_seconds()
+        df_new['Energy'] = df['mono1_energy']
+        df_new['Temperature'] = 0
+        df_new['Absorption'] = 0
+        df_new['Transmission'] = ( df['albaem01_ch1'] + df['albaem01_ch2'] ) / ( df['albaem02_ch3'] + df['albaem02_ch4'] )
+    elif synchrotron in ['SNBL']:
+        # Select the relevant columns
+        df_new = df[['Filename', 'Experiment', 'Measurement', 'ZapEnergy', 'xmap_roi00', 'mon_3', 'mon_4']]
+        # Assign the measured metal or infer from file
+        if metal != None:
+            df_new['Metal'] = metal
+        else:
+            df_new['Metal'] = df['Experiment'].str.split('_').str[-2]
+        # Assign the measured precursor counter-ion or infer from file
+        if precursor != None:
+            df_new['Precursor'] = precursor
+        else:
+            df_new['Precursor'] = precursor
+        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        df_new['Energy'] = df_new['ZapEnergy'] * 1000
+        df_new['Temperature'] = 0
+        if metal == 'Pd':
+            df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_3'].to_numpy()
+        else:
+            df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_4'].to_numpy()
+        df_new['Transmission'] = 0
         df_new['Relative Time'] = 0
     elif synchrotron in ['BALDER']:
         # Select the relevant columns
