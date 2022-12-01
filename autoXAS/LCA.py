@@ -375,14 +375,23 @@ def LCA_internal(
     list_energy_range = []
     list_basis_functions = []
     if final_state_index == -1:
-        final_state_name = 'last'
-        final_state_index = np.amax(data['Measurement'])
+        last_index = True
     else:
-        final_state_name = final_state_index
+        last_index = False
+    # if final_state_index == -1:
+    #     final_state_name = 'last'
+    #     final_state_index = np.amax(data['Measurement'])
+    # else:
+    #     final_state_name = final_state_index
     # Create progress bar for LCA progress
     with tqdm(data['Metal'].unique(), desc='LCA progress: ') as pbar_metal:
         # Loop over all metal edges
         for metal in data['Metal'].unique():
+            if last_index:
+                final_state_name = 'last'
+                final_state_index = np.amax(data['Measurement'][data['Metal'] == metal])
+            else:
+                final_state_name = final_state_index
             if not intermediate_state_index:
                 # Update descriptive text on progress bar
                 pbar_metal.set_postfix_str(f'Analysing frame {initial_state_index} + {final_state_index}')
