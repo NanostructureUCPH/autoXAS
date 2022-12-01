@@ -456,6 +456,7 @@ def normalize_data(
         # Correct for the energy shift at the edge
         df['Energy_Corrected'][exp_filter] = df['Energy'][exp_filter] + edge_correction_energies[metal]
         # Iterate over each measurement
+        sub_val = 0
         for measurement_id in tqdm(df['Measurement'][exp_filter].unique(), leave=False, desc=f'Normalizing {metal}: '):
             # Select only relevant values
             df_filter = (df['Experiment'] == experiment) & (df['Measurement'] == measurement_id)
@@ -479,7 +480,8 @@ def normalize_data(
             except:
                 print(f'Error occurred during normalization of data from measurement {measurement_id}. The error is most likely due to the measurement being stopped before completion.\nThe measurement (incl. all edges) has therefore been removed from the dataset and measurement numbers are corrected.')
                 df.drop(df[(df['Measurement'] == measurement_id)].index, inplace=True)
-                df['Measurement'][(df['Measurement'] > measurement_id)] = df['Measurement'][(df['Measurement'] > measurement_id)] - 1
+                df['Measurement'][(df['Measurement'] > measurement_id - sub_val)] = df['Measurement'][(df['Measurement'] > measurement_id - sub_val)] - 1
+                # sub_val += 1
     return None
 
 def combine_datasets(
