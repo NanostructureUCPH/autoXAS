@@ -253,6 +253,7 @@ def processing_df(
     synchrotron: str,
     metal: Union[str, None]=None,
     precursor: Union[str, None]=None,
+    high_energy_metals: list=['Pd'],
 ) -> pd.DataFrame:
     """------------------------------------------------------------------
     Initial preprocessing of XAS data.
@@ -330,7 +331,7 @@ def processing_df(
         # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
         df_new['Energy'] = df_new['ZapEnergy'] * 1000
         df_new['Temperature'] = 0
-        if metal == 'Pd':
+        if metal in high_energy_metals:
             df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_3'].to_numpy()
         else:
             df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_4'].to_numpy()
