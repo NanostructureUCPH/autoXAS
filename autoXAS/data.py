@@ -1,5 +1,7 @@
 #%% Imports
 
+# Packages for Regular Expressions
+import re
 # Packages for handling time
 from datetime import datetime
 # Packages for math
@@ -19,6 +21,167 @@ from larch.xafs import pre_edge, find_e0
 from larch import Group
 
 #%% Data loader functions
+
+def load_and_prepare_data(
+    folder_path: str,
+    energy_column: str,
+    I0_columns: Union[str, list],
+    I1_columns: Union[str, list],
+    relative_time_column: str,
+    energy_column_unitConversion: int=1,
+    time_regex: str='\S{3}[ ]\S{3}[ ]\d{2}[ ]\d{2}[:]\d{2}[:]\d{2}[ ]\d{4}',
+    time_format: str='%a %b %d %H:%M:%S %Y',
+    time_startTag: str='',
+    time_endTag: str='',
+    time_skipLines: int=0,
+    xas_mode: str='Flourescence',
+    file_selection_condition: Union[str,list[str]]='',
+    negated_condition: bool=False,
+    keep_incomplete: bool=True,
+    verbose: bool=True,
+) -> pd.DataFrame:
+    xas_modes = ['Flourescence', 'F', 'Transmission', 'T']
+    assert xas_mode in xas_modes, f'Invalid XAS mode.\nValid modes are {xas_modes}'
+    # Compile regex pattern
+    compiled_regex = re.compile(time_regex)
+    # Find all valid filepaths
+    if type(file_selection_condition) == list:
+        if negated_condition:
+            filepaths = [path for path in Path(folder_path).glob('*.dat') if all(substring not in path.stem for substring in file_selection_condition)]
+        else:
+            filepaths = [path for path in Path(folder_path).glob('*.dat') if all(substring in path.stem for substring in file_selection_condition)]
+    else:
+        if negated_condition:
+            filepaths = [path for path in Path(folder_path).glob('*.dat') if not file_selection_condition in path.stem]
+        else:
+            filepaths = [path for path in Path(folder_path).glob('*.dat') if file_selection_condition in path.stem]
+    # Create list to hold data
+    list_of_df = []
+    # Create list to check if experiment was stopped during a measurement
+    list_of_n_measurements = []
+    # Define progress bar
+    pbar = tqdm(filepaths, desc='Loading data')
+    # Loop over all files
+    for file in pbar:
+        # Used to track which file is being read
+        file_name = file.name
+        # Used to extract the relevant chemical compound for the measurements
+        experiment_name = file.stem
+        # Update progress bar
+        pbar.set_postfix_str(f'Currently loading {file_name}')
+        # Detect size of header and column names
+        rows_to_skip = 0
+        column_names = []
+        # Open the .dat file
+        with open(file) as f:
+            # Loop through the lines 1-by-1
+            for line in f:
+                # If the line does not start with a "#" and isn't blank we have reached the data and we end the loop.
+                if '#' not in line and len(line) >= 10:
+                    break
+                # If the line starts with a "#" or is blank we are in the header.
+                elif '#' in line or len(line) < 10:
+                    # Count the number of rows to skip
+                    rows_to_skip += 1
+                    # Clean up the line
+                    line = line.replace('\n','').split(' ')
+                    # Extract the column names
+                    column_names = [column for column in line if column][1:]
+        # Read the .dat file into a dataframe
+        df = pd.read_csv(
+            file, 
+            sep=' ',
+            header=None,
+            names=column_names,
+            skiprows=rows_to_skip,
+            skip_blank_lines=True,
+            on_bad_lines='skip',
+            keep_default_na=False,
+            )
+        # Convert the column values to floats
+        df[column_names] = df[column_names].apply(pd.to_numeric, errors='coerce', downcast='float')
+        # Remove any rows that contained non-numeric data
+        df.dropna(axis=0, inplace=True)
+        # Log the filename
+        df['Filename'] = file_name
+        # Convert energy to eV
+        df['Energy'] = df[energy_column] * energy_column_unitConversion
+        # Calculate I0
+        if isinstance(I0_columns, list):
+            df['I0'] = 0
+            for column in I0_columns:
+                df['I0'] += df[column]
+        elif isinstance(I0_columns, str):
+            df['I0'] = df[I0_columns]
+        # Calculate I1
+        if isinstance(I1_columns, list):
+            df['I1'] = 0
+            for column in I1_columns:
+                df['I1'] += df[column]
+        elif isinstance(I1_columns, str):
+            df['I1'] = df[I1_columns]
+        # Calculate absorption coefficient
+        if xas_mode in ['Flourescence', 'F']:
+            df['Absorption Coefficient'] = df['I1'] / df['I0']
+        elif xas_mode in ['Transmission', 'T']:
+            df['Absorption Coefficient'] = np.log( df['I0'] / df['I1'] )
+        # Determine measurement numbers
+        # Calculate time differences in column containing relative time measurements
+        difference = df[relative_time_column].diff()
+        # Create list to hold the measurement numbers
+        measurement = []
+        # The current measurement number. We start at 1
+        measurement_number = 1
+        # The first datapoint has no defined difference, so we add it to measurement 1 now
+        measurement.append(measurement_number)
+        # Loop over the differences in time since measurement started
+        for diff_val in difference:
+            # If the difference is negative we have started a new measurement
+            if diff_val < 0:
+                # Increase the current measurement number
+                measurement_number += 1
+                measurement.append(measurement_number)
+            # If the difference is positive we are in the same measurement
+            elif diff_val >= 0:
+                measurement.append(measurement_number)
+        # Extract timestamps from file
+        with open(file) as f:
+            lines = f.readlines()
+            start_times = [
+                datetime.strptime(compiled_regex.findall(line)[0], time_format) 
+                for i, line in enumerate(lines) 
+                if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_startTag in line)
+            ]
+            end_times = [
+                datetime.strptime(compiled_regex.findall(line)[0], time_format) 
+                for i, line in enumerate(lines) 
+                if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_endTag in line)
+            ]
+        # Save start and end times in dataframe
+        df['Start Time'] = start_times
+        df['End Time'] = end_times
+        # Calculate measurement duration
+        df['Measurement Duration'] = df['End Time'] - df['Start Time']
+        # Append dataframe to the list
+        list_of_df.append(df)
+        # Log the number of measurements
+        list_of_n_measurements.append(measurement_number)
+    # Merge all the dataframes into one dataset
+    df = pd.concat(list_of_df)
+    # Reset the index
+    df.reset_index(drop=True, inplace=True)
+    # Log the number of measurements in each experiment
+    # Remove incomplete measurements
+    if np.amin(list_of_n_measurements) != np.amax(list_of_n_measurements):
+        if verbose:
+            print('Incomplete measurement detected!')
+            print(f'Not all edges were measured {np.amax(list_of_n_measurements)} times, but only {np.amin(list_of_n_measurements)} times.')
+            print('Incomplete measurements will be removed unless keep_incomplete="True".')
+        if not keep_incomplete:
+            df.drop(df[df['Measurement'] > np.amin(list_of_n_measurements)].index, inplace=True)
+            if verbose:
+                print('\nIncomplete measurements were removed!')
+    return df
 
 def load_xas_data(
     folder_path: str, 
