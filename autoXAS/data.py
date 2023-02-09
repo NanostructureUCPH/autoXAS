@@ -27,8 +27,9 @@ def load_and_prepare_data(
     energy_column: str,
     I0_columns: Union[str, list],
     I1_columns: Union[str, list],
-    relative_time_column: str,
     energy_column_unitConversion: int=1,
+    temperature_column: Union[None, str]=None,
+    extract_time: bool=False,
     time_regex: str='\S{3}[ ]\S{3}[ ]\d{2}[ ]\d{2}[:]\d{2}[:]\d{2}[ ]\d{4}',
     time_format: str='%a %b %d %H:%M:%S %Y',
     time_startTag: str='',
@@ -106,6 +107,11 @@ def load_and_prepare_data(
         df['Filename'] = file_name
         # Convert energy to eV
         df['Energy'] = df[energy_column] * energy_column_unitConversion
+        # Get temperature
+        if temperature_column:
+            df['Temperature'] = df[temperature_column]
+        else:
+            df['Temperature'] = 0
         # Calculate I0
         if isinstance(I0_columns, list):
             df['I0'] = 0
@@ -127,7 +133,7 @@ def load_and_prepare_data(
             df['Absorption Coefficient'] = np.log( df['I0'] / df['I1'] )
         # Determine measurement numbers
         # Calculate time differences in column containing relative time measurements
-        difference = df[relative_time_column].diff()
+        difference = df[energy_column].round(2).diff()
         # Create list to hold the measurement numbers
         measurement = []
         # The current measurement number. We start at 1
@@ -144,24 +150,32 @@ def load_and_prepare_data(
             # If the difference is positive we are in the same measurement
             elif diff_val >= 0:
                 measurement.append(measurement_number)
+        df['Measurement'] = measurement
         # Extract timestamps from file
-        with open(file) as f:
-            lines = f.readlines()
-            start_times = [
-                datetime.strptime(compiled_regex.findall(line)[0], time_format) 
-                for i, line in enumerate(lines) 
-                if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_startTag in line)
-            ]
-            end_times = [
-                datetime.strptime(compiled_regex.findall(line)[0], time_format) 
-                for i, line in enumerate(lines) 
-                if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_endTag in line)
-            ]
-        # Save start and end times in dataframe
-        df['Start Time'] = start_times
-        df['End Time'] = end_times
-        # Calculate measurement duration
-        df['Measurement Duration'] = df['End Time'] - df['Start Time']
+        if extract_time:
+            with open(file) as f:
+                lines = f.readlines()
+                start_times = [
+                    datetime.strptime(compiled_regex.findall(line)[0], time_format) 
+                    for i, line in enumerate(lines) 
+                    if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_startTag in line)
+                ]
+                end_times = [
+                    datetime.strptime(compiled_regex.findall(line)[0], time_format) 
+                    for i, line in enumerate(lines) 
+                    if (compiled_regex.findall(line) != []) and (i >= time_skipLines) and (time_endTag in line)
+                ]
+            # Save start and end times in dataframe
+            df['Start Time'] = start_times
+            df['End Time'] = end_times
+            # Calculate measurement duration
+            df['Measurement Duration'] = df['End Time'] - df['Start Time']
+        else:
+            # Save start and end times in dataframe
+            df['Start Time'] = 0
+            df['End Time'] = 1
+            # Calculate measurement duration
+            df['Measurement Duration'] = df['End Time'] - df['Start Time']
         # Append dataframe to the list
         list_of_df.append(df)
         # Log the number of measurements
@@ -306,7 +320,7 @@ def load_xas_data(
                 if synchrotron in ['ESRF']:
                     difference = df['Htime'].diff()
                 elif synchrotron in ['SNBL']:
-                    difference = df['ZapEnergy'].diff()
+                    difference = df['ZapEnergy'].round(2).diff()
                 elif synchrotron in ['BALDER_2']:
                     difference = df['dt'].diff()
                     # Create lists to hold times
@@ -678,12 +692,14 @@ def combine_datasets(
 def average_measurements(
     data: pd.DataFrame, 
     measurements_to_average: Union[list[int], np.ndarray, range], 
+    repeating=False,
 ) -> pd.DataFrame:
     """Calculates the average XAS data for the specified measurements.
 
     Args:
         data (pd.DataFrame): Dataframe containing the XAS data.
         measurements_to_average (Union[list[int], np.ndarray, range]): The measurements to be averaged.
+        repeating (optional, bool): If True every measurements_to_average frames are averaged together. Defaults to False.
 
     Returns:
         averaged_data (pd.DataFrame): Dataframe containing the averaged XAS data.
@@ -692,37 +708,73 @@ def average_measurements(
     list_of_df = []
     # Loop over all experiments
     for experiment in data['Experiment'].unique():
-        # Loop over all the frames to average
-        for measurement in measurements_to_average:
+        if repeating:
+            if not isinstance(measurements_to_average, np.ndarray):
+                measurements_to_average = np.array([i for i in measurements_to_average])
+            
+            # Loop over all the frames to average
+            for measurement in measurements_to_average:
+                # Select only relevant values
+                data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
+                # Create array to store average
+                if measurement == measurements_to_average[0]:
+                    df_avg = data[data_filter].copy()
+                    avg_absorption = np.zeros_like(data['Absorption'][data_filter], dtype=np.float64)
+                    avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
+                # Sum the measurements together
+                avg_absorption += data['Absorption'][data_filter].to_numpy()
+                avg_transmission += data['Transmission'][data_filter].to_numpy()
+            # Divide by the number of measurements used
+            n_measurements = float(len(measurements_to_average))
+            avg_absorption /= n_measurements
+            avg_transmission /= n_measurements
+            # Put the averaged data into the dataframe
+            df_avg['Absorption'] = avg_absorption
+            df_avg['Transmission'] = avg_transmission
             # Select only relevant values
-            data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
-            # Create array to store average
-            if measurement == measurements_to_average[0]:
-                df_avg = data[data_filter].copy()
-                avg_absorption = np.zeros_like(data['Absorption'][data_filter], dtype=np.float64)
-                avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
-            # Sum the measurements together
-            avg_absorption += data['Absorption'][data_filter].to_numpy()
-            avg_transmission += data['Transmission'][data_filter].to_numpy()
-        # Divide by the number of measurements used
-        n_measurements = float(len(measurements_to_average))
-        avg_absorption /= n_measurements
-        avg_transmission /= n_measurements
-        # Put the averaged data into the dataframe
-        df_avg['Absorption'] = avg_absorption
-        df_avg['Transmission'] = avg_transmission
-        # Select only relevant values
-        temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
-        # Calculate the average temperature for the averaged data
-        df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
-        # Set the measurement number to 1
-        df_avg['Measurement'] = 1
-        # Change precursor value to indicate these are averages
-        df_avg['Precursor'] = 'Avg'
-        # if np.amin(measurements_to_average) < 10:
-        #     df_avg['Experiment'] += df_avg['Precursor']
-        # Add the dataframe with the averaged data to list
-        list_of_df.append(df_avg)
+            temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
+            # Calculate the average temperature for the averaged data
+            df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
+            # Set the measurement number to 1
+            df_avg['Measurement'] = 1
+            # # Change precursor value to indicate these are averages
+            # df_avg['Precursor'] = 'Avg'
+            # if np.amin(measurements_to_average) < 10:
+            #     df_avg['Experiment'] += df_avg['Precursor']
+            # Add the dataframe with the averaged data to list
+            list_of_df.append(df_avg)
+        else:
+            # Loop over all the frames to average
+            for measurement in measurements_to_average:
+                # Select only relevant values
+                data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
+                # Create array to store average
+                if measurement == measurements_to_average[0]:
+                    df_avg = data[data_filter].copy()
+                    avg_absorption = np.zeros_like(data['Absorption'][data_filter], dtype=np.float64)
+                    avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
+                # Sum the measurements together
+                avg_absorption += data['Absorption'][data_filter].to_numpy()
+                avg_transmission += data['Transmission'][data_filter].to_numpy()
+            # Divide by the number of measurements used
+            n_measurements = float(len(measurements_to_average))
+            avg_absorption /= n_measurements
+            avg_transmission /= n_measurements
+            # Put the averaged data into the dataframe
+            df_avg['Absorption'] = avg_absorption
+            df_avg['Transmission'] = avg_transmission
+            # Select only relevant values
+            temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
+            # Calculate the average temperature for the averaged data
+            df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
+            # Set the measurement number to 1
+            df_avg['Measurement'] = 1
+            # # Change precursor value to indicate these are averages
+            # df_avg['Precursor'] = 'Avg'
+            # if np.amin(measurements_to_average) < 10:
+            #     df_avg['Experiment'] += df_avg['Precursor']
+            # Add the dataframe with the averaged data to list
+            list_of_df.append(df_avg)
     # Combine all experiments into one dataframe
     df_avg = pd.concat(list_of_df)
     return df_avg
