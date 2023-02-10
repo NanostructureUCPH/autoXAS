@@ -465,10 +465,10 @@ def processing_df(
             df_new['Precursor'] = df['Experiment'].str[2:]
         else:
             df_new['Precursor'] = precursor
-        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        # Calculate the correct x- and y-values for looking at the measured Flourescence and transmission data
         df_new['Energy'] = df_new['ZapEnergy'] * 1000
         df_new['Temperature'] = df['Nanodac']
-        df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['MonEx'].to_numpy()
+        df_new['Flourescence'] = df_new['xmap_roi00'].to_numpy() / df_new['MonEx'].to_numpy()
         df_new['Transmission'] = np.log(df_new['MonEx'].to_numpy() / df_new['Ion1'].to_numpy())
         df_new['Relative Time'] = 0
     elif synchrotron in ['BALDER']:
@@ -486,11 +486,11 @@ def processing_df(
         if precursor != None:
             # Re-assign the experiment name
             df_new['Experiment'] += df_new['Precursor']
-        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        # Calculate the correct x- and y-values for looking at the measured Flourescence and transmission data
         df_new['Relative Time'] = (df_new['Start Time'] - df_new['Start Time'][0]).dt.total_seconds()
         df_new['Energy'] = df['mono1_energy']
         df_new['Temperature'] = 0
-        df_new['Absorption'] = 0
+        df_new['Flourescence'] = 0
         df_new['Transmission'] = ( df['albaem01_ch1'] + df['albaem01_ch2'] ) / ( df['albaem02_ch3'] + df['albaem02_ch4'] )
     elif synchrotron in ['SNBL']:
         # Select the relevant columns
@@ -505,13 +505,13 @@ def processing_df(
             df_new['Precursor'] = precursor
         else:
             df_new['Precursor'] = precursor
-        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        # Calculate the correct x- and y-values for looking at the measured Flourescence and transmission data
         df_new['Energy'] = df_new['ZapEnergy'] * 1000
         df_new['Temperature'] = 0
         if metal in high_energy_metals:
-            df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_3'].to_numpy()
+            df_new['Flourescence'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_3'].to_numpy()
         else:
-            df_new['Absorption'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_4'].to_numpy()
+            df_new['Flourescence'] = df_new['xmap_roi00'].to_numpy() / df_new['mon_4'].to_numpy()
         df_new['Transmission'] = 0
         df_new['Relative Time'] = 0
     elif synchrotron in ['BALDER']:
@@ -529,11 +529,11 @@ def processing_df(
         if precursor != None:
             # Re-assign the experiment name
             df_new['Experiment'] += df_new['Precursor']
-        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        # Calculate the correct x- and y-values for looking at the measured Flourescence and transmission data
         df_new['Relative Time'] = (df_new['Start Time'] - df_new['Start Time'][0]).dt.total_seconds()
         df_new['Energy'] = df['mono1_energy']
         df_new['Temperature'] = 0
-        df_new['Absorption'] = 0
+        df_new['Flourescence'] = 0
         df_new['Transmission'] = ( df['albaem01_ch1'] + df['albaem01_ch2'] ) / ( df['albaem02_ch3'] + df['albaem02_ch4'] )
     elif synchrotron in ['BALDER_2']:
         # Select the relevant columns
@@ -550,11 +550,11 @@ def processing_df(
             df_new['Precursor'] = df['Experiment'].str[2:]
         else:
             df_new['Precursor'] = precursor
-        # Calculate the correct x- and y-values for looking at the measured absorption and transmission data
+        # Calculate the correct x- and y-values for looking at the measured Flourescence and transmission data
         df_new['Relative Time'] = (df_new['Start Time'] - df_new['Start Time'][0]).dt.total_seconds()
         df_new['Energy'] = df['mono1_energy']
         df_new['Temperature'] = 0
-        df_new['Absorption'] = 0
+        df_new['Flourescence'] = 0
         df_new['Transmission'] = ( df['albaem02_ch1'] + df['albaem02_ch2'] ) / ( df['albaem02_ch3'] + df['albaem02_ch4'] )
 
     df_new['Energy_Corrected'] = 0
@@ -576,7 +576,7 @@ def calc_edge_correction(
         df (pd.DataFrame): The preprocessed data.
         metal (str): The measured metal.
         edge (str): The relevant edge (K, L1, L2, L3).
-        transmission (optional, bool): Boolean flag deciding if absorption (False) or transmission (True) signal is used. Defaults to False.
+        transmission (optional, bool): Boolean flag deciding if Flourescence (False) or transmission (True) signal is used. Defaults to False.
 
     Returns:
         float: Edge energy shift
@@ -585,7 +585,7 @@ def calc_edge_correction(
     if transmission:
         data_type = 'Transmission'
     else:
-        data_type = 'Absorption'
+        data_type = 'Flourescence'
     # Find the table value for the relevant edge
     edge_table = xray_edge(metal, edge, energy_only=True)
     # Create dataframe filter
@@ -614,7 +614,7 @@ def normalize_data(
         df (pd.DataFrame): The preprocessed data.
         edge_correction_energies (dict): Energy shifts for all relevant edges.
         subtract_preedge (optional, bool): Boolean flag controlling if the pre-edge fit is subtracted during normalization. Defaults to True.
-        transmission (optional, bool): Boolean flag deciding if absorption (False) or transmission (True) signal is used. Defaults to False.
+        transmission (optional, bool): Boolean flag deciding if Flourescence (False) or transmission (True) signal is used. Defaults to False.
 
     Returns:
         None
@@ -623,7 +623,7 @@ def normalize_data(
     if transmission:
         data_type = 'Transmission'
     else:
-        data_type = 'Absorption'
+        data_type = 'Flourescence'
     # Iterate over each experiment
     for experiment in tqdm(df['Experiment'].unique(), desc='Normalization progress: '):
         # Select only relevant values
@@ -692,7 +692,6 @@ def combine_datasets(
 def average_measurements(
     data: pd.DataFrame, 
     measurements_to_average: Union[list[int], np.ndarray, range], 
-    repeating=False,
 ) -> pd.DataFrame:
     """Calculates the average XAS data for the specified measurements.
 
@@ -708,73 +707,103 @@ def average_measurements(
     list_of_df = []
     # Loop over all experiments
     for experiment in data['Experiment'].unique():
-        if repeating:
-            if not isinstance(measurements_to_average, np.ndarray):
-                measurements_to_average = np.array([i for i in measurements_to_average])
-            
+        # Loop over all the frames to average
+        for measurement in measurements_to_average:
+            # Select only relevant values
+            data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
+            # Create array to store average
+            if measurement == measurements_to_average[0]:
+                df_avg = data[data_filter].copy()
+                avg_flourescence = np.zeros_like(data['Flourescence'][data_filter], dtype=np.float64)
+                avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
+            # Sum the measurements together
+            avg_flourescence += data['Flourescence'][data_filter].to_numpy()
+            avg_transmission += data['Transmission'][data_filter].to_numpy()
+        # Divide by the number of measurements used
+        n_measurements = float(len(measurements_to_average))
+        avg_flourescence /= n_measurements
+        avg_transmission /= n_measurements
+        # Put the averaged data into the dataframe
+        df_avg['Flourescence'] = avg_flourescence
+        df_avg['Transmission'] = avg_transmission
+        # Select only relevant values
+        temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
+        # Calculate the average temperature for the averaged data
+        df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
+        # Set the measurement number to 1
+        df_avg['Measurement'] = 1
+        # Add the dataframe with the averaged data to list
+        list_of_df.append(df_avg)
+    # Combine all experiments into one dataframe
+    df_avg = pd.concat(list_of_df)
+    return df_avg
+
+def average_measurements_periodic(
+    data: pd.DataFrame,  
+    period: Union[None, int]=None,
+    n_periods: Union[None, int]=None,
+) -> pd.DataFrame:
+    """Calculates the average XAS data for the specified measurements.
+
+    Args:
+        data (pd.DataFrame): Dataframe containing the XAS data.
+        measurements_to_average (Union[list[int], np.ndarray, range]): The measurements to be averaged.
+        repeating (optional, bool): If True every measurements_to_average frames are averaged together. Defaults to False.
+
+    Returns:
+        averaged_data (pd.DataFrame): Dataframe containing the averaged XAS data.
+    """
+    # Create list to hold dataframes for each experiment
+    list_of_df = []
+    # Loop over all experiments
+    if (period and n_periods) or (not period and not n_periods) :
+        n_arguments = bool(period) + bool(n_periods)
+        raise Exception(f"Exactly 1 optional argument should be given. {n_arguments} was given.")
+    # Perform the periodic averaging of the data
+    for experiment in data['Experiment'].unique():
+        if period:
+            # Find number of measurements to average
+            n_total_measurements = np.amax(data['Measurement'][data['Experiment'] == experiment])
+            n_measurements_to_average = period
+            new_n_measurements = int(np.ceil(n_total_measurements / period))
+        elif n_periods:
+            # Find number of measurements to average
+            n_total_measurements = np.amax(data['Measurement'][data['Experiment'] == experiment])
+            n_measurements_to_average = n_total_measurements // n_periods
+            new_n_measurements = n_periods
+        measurements_to_average = np.arange(n_measurements_to_average)+1
+        measurements_to_average_temp = measurements_to_average.copy()
+        for measurement_number in range(new_n_measurements):
+            if measurements_to_average_temp.any() >= n_total_measurements:
+                measurements_to_average_temp = np.array([i for i in measurements_to_average_temp if i < n_total_measurements])
             # Loop over all the frames to average
-            for measurement in measurements_to_average:
+            for measurement in measurements_to_average_temp:
                 # Select only relevant values
                 data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
                 # Create array to store average
-                if measurement == measurements_to_average[0]:
+                if measurement == measurements_to_average_temp[0]:
                     df_avg = data[data_filter].copy()
-                    avg_absorption = np.zeros_like(data['Absorption'][data_filter], dtype=np.float64)
+                    avg_flourescence = np.zeros_like(data['Flourescence'][data_filter], dtype=np.float64)
                     avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
                 # Sum the measurements together
-                avg_absorption += data['Absorption'][data_filter].to_numpy()
+                avg_flourescence += data['Flourescence'][data_filter].to_numpy()
                 avg_transmission += data['Transmission'][data_filter].to_numpy()
             # Divide by the number of measurements used
-            n_measurements = float(len(measurements_to_average))
-            avg_absorption /= n_measurements
+            n_measurements = float(len(measurements_to_average_temp))
+            avg_flourescence /= n_measurements
             avg_transmission /= n_measurements
             # Put the averaged data into the dataframe
-            df_avg['Absorption'] = avg_absorption
+            df_avg['Flourescence'] = avg_flourescence
             df_avg['Transmission'] = avg_transmission
             # Select only relevant values
-            temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
+            temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average_temp))
             # Calculate the average temperature for the averaged data
             df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
             # Set the measurement number to 1
-            df_avg['Measurement'] = 1
-            # # Change precursor value to indicate these are averages
-            # df_avg['Precursor'] = 'Avg'
-            # if np.amin(measurements_to_average) < 10:
-            #     df_avg['Experiment'] += df_avg['Precursor']
+            df_avg['Measurement'] = measurement_number + 1
             # Add the dataframe with the averaged data to list
             list_of_df.append(df_avg)
-        else:
-            # Loop over all the frames to average
-            for measurement in measurements_to_average:
-                # Select only relevant values
-                data_filter = (data['Experiment'] == experiment) & (data['Measurement'] == measurement)
-                # Create array to store average
-                if measurement == measurements_to_average[0]:
-                    df_avg = data[data_filter].copy()
-                    avg_absorption = np.zeros_like(data['Absorption'][data_filter], dtype=np.float64)
-                    avg_transmission = np.zeros_like(data['Transmission'][data_filter], dtype=np.float64)
-                # Sum the measurements together
-                avg_absorption += data['Absorption'][data_filter].to_numpy()
-                avg_transmission += data['Transmission'][data_filter].to_numpy()
-            # Divide by the number of measurements used
-            n_measurements = float(len(measurements_to_average))
-            avg_absorption /= n_measurements
-            avg_transmission /= n_measurements
-            # Put the averaged data into the dataframe
-            df_avg['Absorption'] = avg_absorption
-            df_avg['Transmission'] = avg_transmission
-            # Select only relevant values
-            temp_filter = (data['Experiment'] == experiment) & (data['Measurement'].isin(measurements_to_average))
-            # Calculate the average temperature for the averaged data
-            df_avg['Temperature'] = data['Temperature'][temp_filter].mean()
-            # Set the measurement number to 1
-            df_avg['Measurement'] = 1
-            # # Change precursor value to indicate these are averages
-            # df_avg['Precursor'] = 'Avg'
-            # if np.amin(measurements_to_average) < 10:
-            #     df_avg['Experiment'] += df_avg['Precursor']
-            # Add the dataframe with the averaged data to list
-            list_of_df.append(df_avg)
+            measurements_to_average_temp += n_measurements_to_average
     # Combine all experiments into one dataframe
     df_avg = pd.concat(list_of_df)
     return df_avg
