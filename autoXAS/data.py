@@ -27,15 +27,17 @@ def load_and_prepare_data(
     energy_column: str,
     I0_columns: Union[str, list],
     I1_columns: Union[str, list],
-    energy_column_unitConversion: int=1,
+    metal: Union[str, tuple],
+    precursor: Union[None, str, tuple]=None,
+    xas_mode: str='Flourescence',
     temperature_column: Union[None, str]=None,
+    energy_column_unitConversion: int=1,
     extract_time: bool=False,
     time_regex: str='\S{3}[ ]\S{3}[ ]\d{2}[ ]\d{2}[:]\d{2}[:]\d{2}[ ]\d{4}',
     time_format: str='%a %b %d %H:%M:%S %Y',
     time_startTag: str='',
     time_endTag: str='',
     time_skipLines: int=0,
-    xas_mode: str='Flourescence',
     file_selection_condition: Union[str,list[str]]='',
     negated_condition: bool=False,
     keep_incomplete: bool=True,
@@ -105,6 +107,20 @@ def load_and_prepare_data(
         df.dropna(axis=0, inplace=True)
         # Log the filename
         df['Filename'] = file_name
+        # Log the experiment name
+        df['Experiment'] = experiment_name
+        # Log the measured metal
+        if isinstance(metal, str):
+            df['Metal'] = metal
+        elif isinstance(metal, tuple):
+            df['Metal'] = experiment_name.split(metal[0])[metal[1]]
+        # Log the measured precursor
+        if isinstance(precursor, str):
+            df['Precursor'] = precursor
+        elif isinstance(precursor, tuple):
+            df['Precursor'] = experiment_name.split(precursor[0])[precursor[1]]
+        else:
+            df['Precursor'] = None
         # Convert energy to eV
         df['Energy'] = df[energy_column] * energy_column_unitConversion
         # Get temperature
@@ -128,9 +144,11 @@ def load_and_prepare_data(
             df['I1'] = df[I1_columns]
         # Calculate absorption coefficient
         if xas_mode in ['Flourescence', 'F']:
-            df['Absorption Coefficient'] = df['I1'] / df['I0']
+            df['Flourescence'] = df['I1'] / df['I0']
+            df['Transmission'] = 0
         elif xas_mode in ['Transmission', 'T']:
-            df['Absorption Coefficient'] = np.log( df['I0'] / df['I1'] )
+            df['Transmission'] = np.log( df['I0'] / df['I1'] )
+            df['Flourescence'] = 0
         # Determine measurement numbers
         # Calculate time differences in column containing relative time measurements
         difference = df[energy_column].round(2).diff()
@@ -184,6 +202,11 @@ def load_and_prepare_data(
     df = pd.concat(list_of_df)
     # Reset the index
     df.reset_index(drop=True, inplace=True)
+    # Insert empty columns for normalization
+    df['Energy_Corrected'] = 0
+    df['Normalized'] = 0
+    df['pre_edge'] = 0
+    df['post_edge'] = 0
     # Log the number of measurements in each experiment
     # Remove incomplete measurements
     if np.amin(list_of_n_measurements) != np.amax(list_of_n_measurements):
