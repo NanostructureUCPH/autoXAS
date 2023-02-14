@@ -187,13 +187,13 @@ def load_and_prepare_data(
             df['Start Time'] = start_times
             df['End Time'] = end_times
             # Calculate measurement duration
-            df['Measurement Duration'] = df['End Time'] - df['Start Time']
+            df['Relative Time'] = df['End Time'] - df['Start Time']
         else:
             # Save start and end times in dataframe
             df['Start Time'] = 0
             df['End Time'] = 1
             # Calculate measurement duration
-            df['Measurement Duration'] = df['End Time'] - df['Start Time']
+            df['Relative Time'] = df['End Time'] - df['Start Time']
         # Append dataframe to the list
         list_of_df.append(df)
         # Log the number of measurements
