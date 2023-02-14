@@ -12,6 +12,7 @@ from tqdm import tqdm
 # Packages for fitting
 from lmfit import Parameters, fit_report, minimize
 from lmfit.minimizer import MinimizerResult
+from sklearn.decomposition import PCA, NMF
 
 #%% Fitting functions
 
@@ -558,3 +559,23 @@ def LCA_internal(
         return df_results
     else:
         return fit_results
+
+# TODO: This function and a NMF equivalent
+def PCA(
+    data: pd.DataFrame,
+    n_components: Union[str, int]='infer',
+):
+    for metal in data['Metal'].unique():
+        data_subset = data[data['Metal'] == metal].copy()
+        n_measurements = len(data_subset['Measurement'].unique())
+        n_points = len(data_subset['Normalized'][data_subset['Measurement'] == 1])
+        pca_subset = data_subset['Normalized'].to_numpy().reshape(n_measurements, -1)
+        if n_components == 'infer':
+            pca = PCA()
+            pca.fit(pca_subset)
+
+        
+        pca = PCA(n_components=n_components)
+        pca_weights = pca.fit_transform(pca_subset)
+
+    return None

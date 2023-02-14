@@ -17,7 +17,7 @@ from watchdog.events import PatternMatchingEventHandler
 from IPython.display import clear_output
 # Importing functions from the other scripts
 from autoXAS.data import *
-from autoXAS.LCA import *
+from autoXAS.analysis import *
 from autoXAS.plotting import *
 
 #%% Watching directory for changes
