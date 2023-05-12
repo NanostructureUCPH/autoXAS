@@ -53,7 +53,7 @@ def plot_non_normalized_xas(
     if transmission:
         data_type = 'Transmission'
     else:
-        data_type = 'Absorption'
+        data_type = 'Flourescence'
     # Create filter for relevant values
     df_filter = (df['Experiment'] == experiment) & (df['Measurement'] == 1)
     # Extract the minimum value in the data
@@ -104,7 +104,7 @@ def plot_non_normalized_xas(
             fontweight='bold'
             )
         plt.ylabel(
-            r'X-ray transmission, µ(E)$\cdot$x', 
+            f'X-ray {data_type.lower()},' + r'µ(E)$\cdot$x', 
             fontsize=14, 
             fontweight='bold'
             )
@@ -121,7 +121,7 @@ def plot_non_normalized_xas(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive figure using plotly
     elif interactive:
@@ -184,7 +184,7 @@ def plot_non_normalized_xas(
         fig.update_traces(hovertemplate=hovertemplate)
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -319,7 +319,7 @@ def plot_data(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -441,7 +441,7 @@ def plot_data(
         fig.update_traces(hovertemplate=hovertemplate)
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -576,27 +576,29 @@ def plot_insitu_waterfall(
             left=True,
         )
         # Set xtick labels
-        xticks = [
+        n_xticks = 10
+        xticks_extremes = [
             np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]), 
             np.amax(data['Energy_Corrected'][data['Experiment'] == experiment])
             ] 
-        xticks += list(
+        xticks = list(
             np.arange(
-                np.ceil(np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]) / 50) * 50, 
-                np.ceil(np.amax(data['Energy_Corrected'][data['Experiment'] == experiment]) / 50) * 50, 
-                step=50,
+                np.ceil(np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]) / n_xticks) * n_xticks, 
+                np.ceil(np.amax(data['Energy_Corrected'][data['Experiment'] == experiment]) / n_xticks) * n_xticks, 
+                step=n_xticks,
                 dtype=np.int32,
             )
         )
+        print(plt.xticks())
         plt.xticks(
-            ticks=xticks - xticks[0],
+            ticks=xticks - xticks_extremes[0],
             labels=xticks,
             rotation=0,
         )
         # Formatting of y-axis ticks and labels
         # Set ytick positions
-        ytick_base = 25
-        plt.gca().yaxis.set_major_locator(ticker.IndexLocator(base=ytick_base, offset=ytick_base - 1))
+        ytick_base = 1
+        # plt.gca().yaxis.set_major_locator(ticker.IndexLocator(base=ytick_base, offset=ytick_base - 1))
         y_pos = plt.yticks()[0].astype(int)
         y_pos = np.append(y_pos, 0)
         if y_axis == 'Measurement':
@@ -607,7 +609,7 @@ def plot_insitu_waterfall(
             )
         elif y_axis == 'Relative Time':
             # Converted y values
-            y_converted = (data[y_axis][data['Experiment'] == experiment].unique() / unit_conversion).astype(dtype=time_dtype)
+            y_converted = (df_plot[y_axis].unique() / unit_conversion).astype(dtype=time_dtype)
             # Round values
             y_converted = np.round(
                 y_converted,
@@ -642,7 +644,7 @@ def plot_insitu_waterfall(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -704,7 +706,7 @@ def plot_insitu_waterfall(
         fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 # TODO: Make y axis relative to the reference frame
@@ -930,7 +932,7 @@ def plot_insitu_change(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -1004,7 +1006,7 @@ def plot_insitu_change(
         fig.update_yaxes(showspikes=True, spikecolor="black", spikethickness=-2)
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -1087,7 +1089,7 @@ def plot_temperatures(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -1169,7 +1171,7 @@ def plot_temperatures(
         )
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -1323,7 +1325,7 @@ def plot_LCA(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -1428,7 +1430,7 @@ def plot_LCA(
         fig.update_traces(hovertemplate=hovertemplate)
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -1563,7 +1565,7 @@ def plot_LCA_change(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -1696,7 +1698,7 @@ def plot_LCA_change(
         )
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None
 
@@ -1815,7 +1817,7 @@ def plot_reduction_comparison(
             loc='center left', 
             bbox_to_anchor=(1,0.5),
             labels=labels_list, 
-            title='Components',
+            title='Element',
             fontsize=12,
             title_fontsize=13,
         )
@@ -1823,7 +1825,7 @@ def plot_reduction_comparison(
         plt.tight_layout()
         # Save plot as a png
         if save_plot:
-            plt.savefig(f'./Data/Plots/{save_name}', dpi=300)
+            plt.savefig(f'../Data/Plots/{save_name}', dpi=300)
         plt.show()
     # Make interactive plot using plotly
     elif interactive:
@@ -1966,10 +1968,10 @@ def plot_reduction_comparison(
                 size=14,
             ),
             hovermode='x unified',
-            legend_title='Experiment',
+            legend_title='Element',
         )
         # Save plot as an image
         if save_plot:
-            fig.write_image(f'./Data/Plots/{save_name}')
+            fig.write_image(f'../Data/Plots/{save_name}')
         fig.show()
     return None

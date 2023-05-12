@@ -508,6 +508,8 @@ def LCA_internal(
                             list_stderrors.append(param.stderr)
                             list_energy_range.append(data_range)
                             # Error estimation of the dependent parameter (precursor_weight) is inconsistent when close to the maximum allowed values
+                            if param.stderr is None:
+                                param.stderr = 0.
                             if name == 'precursor_weight' and (param.value >= 0.99 or param.stderr > 0.5):
                                 list_stderrors_corrected.append(np.mean(list_stderrors_corrected[-2:]))
                             elif name == 'intermediate_weight' and (param.value <= 0.01 and param.stderr > 1.):
@@ -565,6 +567,18 @@ def PCA(
     data: pd.DataFrame,
     n_components: Union[str, int]='infer',
 ):
+    list_metal = []
+    list_measurement = []
+    list_component1 = []
+    list_weight1 = []
+    list_component2 = []
+    list_weight2 = []
+    list_component3 = []
+    list_weight3 = []
+    list_component4 = []
+    list_weight4 = []
+    list_component5 = []
+    list_weight5 = []
     for metal in data['Metal'].unique():
         data_subset = data[data['Metal'] == metal].copy()
         n_measurements = len(data_subset['Measurement'].unique())
@@ -577,5 +591,6 @@ def PCA(
         
         pca = PCA(n_components=n_components)
         pca_weights = pca.fit_transform(pca_subset)
+
 
     return None
