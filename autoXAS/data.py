@@ -651,19 +651,24 @@ def normalize_data(
     for experiment in tqdm(df['Experiment'].unique(), desc='Normalization progress: '):
         # Select only relevant values
         exp_filter = (df['Experiment'] == experiment)
+        print(experiment)
         # Measured metal
         metal = df['Metal'][exp_filter].to_list()[0]
+        print(metal)
         # Correct for the energy shift at the edge
         df['Energy_Corrected'][exp_filter] = df['Energy'][exp_filter] + edge_correction_energies[metal]
         # Iterate over each measurement
-        sub_val = 0
+        measurement_correction = 0
         for measurement_id in tqdm(df['Measurement'][exp_filter].unique(), leave=False, desc=f'Normalizing {metal}: '):
+            measurement_id -= measurement_correction
             # Select only relevant values
             df_filter = (df['Experiment'] == experiment) & (df['Measurement'] == measurement_id)
             # Create dummy Group to collect post edge fit
             g = Group(name='temp_group')
             # Subtract minimum value from measurement
             df['Normalized'][df_filter] = df[data_type][df_filter] - np.amin(df[data_type][df_filter])
+            if all(x == 0.0 for x in df['Normalized'][df_filter]):
+                raise Exception('')
             try:
                 # Fit to the pre- and post-edge
                 pre_edge(df['Energy_Corrected'][df_filter].to_numpy(), df['Normalized'][df_filter].to_numpy(), group=g)
@@ -680,8 +685,9 @@ def normalize_data(
             except:
                 print(f'Error occurred during normalization of data from measurement {measurement_id}. The error is most likely due to the measurement being stopped before completion.\nThe measurement (incl. all edges) has therefore been removed from the dataset and measurement numbers are corrected.')
                 df.drop(df[(df['Measurement'] == measurement_id)].index, inplace=True)
-                df['Measurement'][(df['Measurement'] > measurement_id - sub_val)] = df['Measurement'][(df['Measurement'] > measurement_id - sub_val)] - 1
-                # sub_val += 1
+                df['Measurement'][(df['Measurement'] > measurement_id)] -= 1
+                measurement_correction += 1
+
     return None
 
 def combine_datasets(

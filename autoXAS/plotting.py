@@ -542,7 +542,7 @@ def plot_insitu_waterfall(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8)) #8,8
         ax = sns.heatmap(
             data=heatmap_data,
             vmin=vmin,
@@ -811,7 +811,7 @@ def plot_insitu_change(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8)) #8,8
         ax = sns.heatmap(
             data=heatmap_data,
             center=0.,
