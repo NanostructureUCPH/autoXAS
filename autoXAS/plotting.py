@@ -542,7 +542,7 @@ def plot_insitu_waterfall(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8)) #8,8
         ax = sns.heatmap(
             data=heatmap_data,
             vmin=vmin,
@@ -577,10 +577,6 @@ def plot_insitu_waterfall(
         )
         # Set xtick labels
         n_xticks = 10
-        xticks_extremes = [
-            np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]), 
-            np.amax(data['Energy_Corrected'][data['Experiment'] == experiment])
-            ] 
         xticks = list(
             np.arange(
                 np.ceil(np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]) / n_xticks) * n_xticks, 
@@ -589,22 +585,20 @@ def plot_insitu_waterfall(
                 dtype=np.int32,
             )
         )
-        print(plt.xticks())
+        xtick_pos = np.interp(xticks, data['Energy_Corrected'][(data['Experiment'] == experiment) & (data['Measurement'] == 1)], data['Energy_Corrected'][(data['Experiment'] == experiment) & (data['Measurement'] == 1)].index)
         plt.xticks(
-            ticks=xticks - xticks_extremes[0],
+            ticks=xtick_pos,
             labels=xticks,
-            rotation=0,
+            rotation=45,
         )
         # Formatting of y-axis ticks and labels
         # Set ytick positions
-        ytick_base = 1
-        # plt.gca().yaxis.set_major_locator(ticker.IndexLocator(base=ytick_base, offset=ytick_base - 1))
         y_pos = plt.yticks()[0].astype(int)
         y_pos = np.append(y_pos, 0)
         if y_axis == 'Measurement':
             # Set ytick labels
             plt.yticks(
-                y_pos,
+                y_pos + 0.5,
                 data[y_axis][data['Experiment'] == experiment].unique()[y_pos],
             )
         elif y_axis == 'Relative Time':
@@ -617,11 +611,14 @@ def plot_insitu_waterfall(
             )
             # Set ytick labels
             plt.yticks(
-                ticks=y_pos,
+                ticks=y_pos + 0.5,
                 labels=y_converted[y_pos],
             )
         # Invert y-axis
         plt.gca().invert_yaxis()
+        # Add spines manually
+        ax.axhline(y=0, color='k', linewidth=2)
+        ax.axvline(x=0, color='k', linewidth=1)
         # Specify text and formatting of axis labels
         plt.xlabel(
             'Energy [eV]', 
@@ -814,7 +811,7 @@ def plot_insitu_change(
     # Make figure using matplotlib and seaborn
     if not interactive:
         # Create figure object and set the figure size
-        plt.figure(figsize=(8,8))
+        plt.figure(figsize=(10,8)) #8,8
         ax = sns.heatmap(
             data=heatmap_data,
             center=0.,
@@ -825,7 +822,7 @@ def plot_insitu_change(
         )
         # Plot reference line 
         plt.axhline(
-            y=reference_measurement - 1, 
+            y=reference_measurement - 0.5, 
             color='k', 
             linestyle='-',
             linewidth=1.5,
@@ -833,7 +830,7 @@ def plot_insitu_change(
         # Plot reference annotation
         plt.annotate(
             text=f'Reference ({reference_measurement})',
-            xy=(plt.xlim()[0], reference_measurement-1),
+            xy=(plt.xlim()[0], reference_measurement-0.5),
             xytext=(5,3),
             textcoords='offset points',
             fontsize=10,
@@ -866,38 +863,34 @@ def plot_insitu_change(
             left=True,
         )
         # Set xtick labels
-        xticks = [
-            np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]), 
-            np.amax(data['Energy_Corrected'][data['Experiment'] == experiment])
-            ] 
-        xticks += list(
+        n_xticks = 10
+        xticks = list(
             np.arange(
-                np.ceil(np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]) / 50) * 50, 
-                np.ceil(np.amax(data['Energy_Corrected'][data['Experiment'] == experiment]) / 50) * 50, 
-                step=50,
+                np.ceil(np.amin(data['Energy_Corrected'][data['Experiment'] == experiment]) / n_xticks) * n_xticks, 
+                np.ceil(np.amax(data['Energy_Corrected'][data['Experiment'] == experiment]) / n_xticks) * n_xticks, 
+                step=n_xticks,
                 dtype=np.int32,
             )
         )
+        xtick_pos = np.interp(xticks, data['Energy_Corrected'][(data['Experiment'] == experiment) & (data['Measurement'] == 1)], data['Energy_Corrected'][(data['Experiment'] == experiment) & (data['Measurement'] == 1)].index)
         plt.xticks(
-            ticks=xticks - xticks[0],
+            ticks=xtick_pos,
             labels=xticks,
-            rotation=0,
+            rotation=45,
         )
         # Formatting of y-axis ticks and labels
         # Set ytick positions
-        ytick_base = 25
-        plt.gca().yaxis.set_major_locator(ticker.IndexLocator(base=ytick_base, offset=ytick_base - 1))
         y_pos = plt.yticks()[0].astype(int)
         y_pos = np.append(y_pos, 0)
         if y_axis == 'Measurement':
             # Set ytick labels
             plt.yticks(
-                y_pos,
+                y_pos + 0.5,
                 data[y_axis][data['Experiment'] == experiment].unique()[y_pos],
             )
         elif y_axis == 'Relative Time':
             # Converted y values
-            y_converted = (data[y_axis][data['Experiment'] == experiment].unique() / unit_conversion).astype(dtype=time_dtype)
+            y_converted = (df_change[y_axis].unique() / unit_conversion).astype(dtype=time_dtype)
             # Round values
             y_converted = np.round(
                 y_converted,
@@ -905,11 +898,14 @@ def plot_insitu_change(
             )
             # Set ytick labels
             plt.yticks(
-                ticks=y_pos,
+                ticks=y_pos + 0.5,
                 labels=y_converted[y_pos],
             )
         # Invert y-axis
         plt.gca().invert_yaxis()
+        # Add spines manually
+        ax.axhline(y=0, color='k', linewidth=2)
+        ax.axvline(x=0, color='k', linewidth=1)
         # Specify text and formatting of axis labels
         plt.xlabel(
             'Energy [eV]', 
