@@ -185,8 +185,8 @@ def plot_non_normalized_xas(
         # Save plot as an image
         if save_plot:
             fig.write_image(f'../Data/Plots/{save_name}')
-        fig.show()
-    return None
+        #fig.show()
+    return fig
 
 def plot_data(
     data: pd.DataFrame, 
