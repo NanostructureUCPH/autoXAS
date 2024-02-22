@@ -158,6 +158,10 @@ class autoXAS():
             raise NotImplementedError('HDF5 file reading not implemented yet')
         return None
     
+    def _edge_correction(self):
+        raise NotImplementedError('Edge correction not implemented yet')
+        return None
+    
     def _average_data(self, measurements_to_average: Union[str, list[int], np.ndarray, range]='all'):
         avg_measurements = []
         for experiment in tqdm(self.experiments, desc='Averaging data', leave=False):
@@ -296,6 +300,18 @@ class autoXAS():
         self._normalize_data()
         return None
     
+    def LCA(self):
+        raise NotImplementedError('LCA not implemented yet')
+        return None
+    
+    def PCA(self):
+        raise NotImplementedError('PCA not implemented yet')
+        return None
+    
+    def NMF(self):
+        raise NotImplementedError('NMF not implemented yet')
+        return None
+    
     def to_csv(self, filename: str, directory: str='./', columns: Union[None, list[str]]=None):
         self.data.to_csv(directory + filename + '.csv', index=False, columns=columns)
         return None
@@ -306,3 +322,22 @@ class autoXAS():
         raise NotImplementedError('Athena export not implemented yet')
         return None
     
+    def plot_data(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_temperature_curve(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_LCA(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_PCA(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_NMF(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
