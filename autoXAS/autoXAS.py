@@ -6,8 +6,11 @@ import yaml
 from pathlib import Path
 from tqdm.auto import tqdm
 from larch import Group
-from larch.xafs import pre_edge
+from larch.xray import xray_edge
+from larch.xafs import pre_edge, find_e0
 from typing import Union
+from lmfit import Parameters, fit_report, minimize
+from lmfit.minimizer import MinimizerResult
 
 # %% autoXAS class
 
@@ -17,6 +20,7 @@ class autoXAS():
         self.data_type = '.dat'
         self.data = None
         self.raw_data = None
+        self.standards = None
         self.experiments = None
         self.save_directory = './'
         self.energy_column = None
@@ -24,7 +28,7 @@ class autoXAS():
         self.I1_columns = None
         self.temperature_column = None
         self.metals = None
-        self.edge_correction = False
+        self.edge_correction_energies = {}
         self.xas_mode = 'Flourescence'
         self.energy_unit = 'eV'
         self.energy_column_unitConversion = 1
@@ -153,13 +157,45 @@ class autoXAS():
                 if self.data is None:
                     self.data = data
                 else:
-                    self.data = pd.concat([self.data, data])
+                    self.data = pd.concat([self.data, data]).reset_index(drop=True)
+                    
         elif self.data_type == '.h5':
             raise NotImplementedError('HDF5 file reading not implemented yet')
         return None
     
-    def _edge_correction(self):
-        raise NotImplementedError('Edge correction not implemented yet')
+    def load_standards(self, standards_directory: str, standards_type: str='.dat'):
+        raise NotImplementedError('Standard loading not implemented yet')
+    
+    def calculate_edge_shift(self, metals: list[str], edges: list[str]):
+        for metal, edge in zip(metals, edges):
+            edge_energy_table = xray_edge(metal, edge, energy_only=True)
+            
+            measurement_filter = (self.data['Metal'] == metal) & (self.data['Experiment'] == 1)
+            edge_energy_measured = find_e0(self.data['Energy'][measurement_filter], self.data['mu'][measurement_filter])
+            self.edge_correction_energies[metal] = edge_energy_table - edge_energy_measured
+        return None
+    
+    def _energy_correction(self):
+        for experiment in tqdm(self.experiments, desc='Energy correction', leave=False):
+            experiment_filter = (self.data['Experiment'] == experiment)
+            n_measurements = self.data['Measurement'][experiment_filter].max()
+            # Correct for small variations in measured energy points
+            energy = self.data['Energy'][experiment_filter].to_numpy().reshape(n_measurements, -1)
+            energy_correction = energy.mean(axis=0)
+            # Correct for edge shift
+            energy_correction += self.edge_correction_energies.get(self.data['Metal'][experiment_filter].values[0], 0.0)
+            # Estimate mu at corrected energy points using linear interpolation
+            for measurement in range(1, n_measurements+1):
+                measurement_filter = (self.data['Experiment'] == experiment) & (self.data['Measurement'] == measurement)
+                i0_interpolated = np.interp(energy_correction, self.data['Energy'][measurement_filter], self.data['I0'][measurement_filter])
+                i1_interpolated = np.interp(energy_correction, self.data['Energy'][measurement_filter], self.data['I1'][measurement_filter])
+                mu_interpolated = np.interp(energy_correction, self.data['Energy'][measurement_filter], self.data['mu'][measurement_filter])
+                
+                # Apply correction
+                self.data['Energy'][measurement_filter] = energy_correction
+                self.data['I0'][measurement_filter] = i0_interpolated
+                self.data['I1'][measurement_filter] = i1_interpolated
+                self.data['mu'][measurement_filter] = mu_interpolated
         return None
     
     def _average_data(self, measurements_to_average: Union[str, list[int], np.ndarray, range]='all'):
@@ -178,7 +214,6 @@ class autoXAS():
                 
                 if first:
                     df_avg = self.data[measurement_filter].copy()
-                    energy_avg = np.zeros_like(df_avg['Energy'], dtype=np.float64)
                     i0_avg = np.zeros_like(df_avg['I0'], dtype=np.float64)
                     i1_avg = np.zeros_like(df_avg['I1'], dtype=np.float64)
                     mu_avg = np.zeros_like(df_avg['mu'], dtype=np.float64)
@@ -186,14 +221,12 @@ class autoXAS():
                     
                     first = False
                 
-                energy_avg += self.data['Energy'][measurement_filter].to_numpy()
                 i0_avg += self.data['I0'][measurement_filter].to_numpy()
                 i1_avg += self.data['I1'][measurement_filter].to_numpy()
                 mu_avg += self.data['mu'][measurement_filter].to_numpy()
                 temperature_avg += self.data['Temperature'][measurement_filter].to_numpy()
             
             n_measurements = len(measurements)
-            df_avg['Energy'] = energy_avg / n_measurements
             df_avg['I0'] = i0_avg / n_measurements
             df_avg['I1'] = i1_avg / n_measurements
             df_avg['mu'] = mu_avg / n_measurements
@@ -286,22 +319,123 @@ class autoXAS():
                     print(f'Error normalizing {experiment} measurement {measurement}. Measurement removed.')
         return None
     
-    def load_data(self, average: bool=False, average_type: str='standard', measurements_to_average: Union[str, list[int], np.ndarray, range]='all', n_periods: Union[None, int]=None, period: Union[None, int]=None):	
+    def load_data(self, average: Union[bool, str]=False, measurements_to_average: Union[str, list[int], np.ndarray, range]='all', n_periods: Union[None, int]=None, period: Union[None, int]=None):	
         self._read_data()
         self.experiments = list(self.data['Experiment'].unique())
         self.metals = list(self.data['Metal'].unique())
+        self._energy_correction()
         if average:
-            if average_type == 'standard':
+            if average.lower() == 'standard':
                 self._average_data(measurements_to_average=measurements_to_average)
-            elif average_type == 'periodic':
+            elif average.lower() == 'periodic':
                 self._average_data_periodic(period=period, n_periods=n_periods)
             else:
-                raise ValueError('Invalid average_type. Must be "standard" or "periodic"')
+                raise ValueError('Invalid average. Must be "standard" or "periodic".')
         self._normalize_data()
         return None
     
-    def LCA(self):
-        raise NotImplementedError('LCA not implemented yet')
+    def _linear_combination(self, weights: Parameters, components: list[np.array]) -> np.array:
+        weights = np.array(list(weights.valuesdict().values()))
+        components = np.array(components)
+        return np.dot(weights, components)
+        
+    def _residual(self, target: np.array, combination: np.array) -> np.array:
+        return target - combination
+    
+    def _fit_function(self, weights: Parameters, components: list[np.array], target: np.array) -> np.array:
+        combination = self._linear_combination(weights, components)
+        return self._residual(target, combination)
+    
+    def LCA(self, use_standards: bool=False, components: Union[list[int], list[str], None]=[0,-1], fit_range: Union[None, tuple[float, float]]=None, verbose: bool=False):
+        # raise NotImplementedError('LCA not implemented yet')
+        if use_standards and not self.standards:
+            raise ValueError('No standards loaded')
+        
+        # Initialize list to store results
+        list_experiment = []
+        list_metal = []
+        list_measurement = []
+        list_temperature = []
+        list_fit_range = []
+        list_energy = []
+        list_component_name = []
+        list_component = []
+        list_parameter_name = []
+        list_parameter_value = []
+        list_parameter_error = []
+        
+        for metal in tqdm(self.metals, desc='Performing LCA', leave=False):
+            if use_standards:
+                raise NotImplementedError('LCA with standards not implemented yet')
+                # if components is None:
+                #     relevant_standards = [name for standard in self.standards[''] if metal in standard]
+                #     components_mu = [self.standards[standard]['mu_norm'] for standard in relevant_standards]
+                # relevant_standards = [name for name in components if metal in name]
+                # components_mu = [self.standards['mu_norm'][self.standards['']] for standard in relevant_standards]
+            else:
+                component_measurements = self.data['Measurement'][self.data['Metal'] == metal].values[components]
+                component_names = [f'Measurement {meas_num}' for meas_num in component_measurements]
+                n_components = len(component_measurements)
+                if n_components < 2:
+                    raise ValueError('At least 2 components are required to perform LCA.')
+                components_mu = []
+                for measurement in component_measurements:
+                    measurement_filter = (self.data['Metal'] == metal) & (self.data['Measurement'] == measurement)
+                    components_mu.append(self.data['mu_norm'][measurement_filter].to_numpy())
+                    
+            if fit_range:
+                raise NotImplementedError('Fit range not implemented yet')
+            
+            for measurement in self.data['Measurement'][self.data['Metal'] == metal].unique():
+                measurement_filter = (self.data['Metal'] == metal) & (self.data['Measurement'] == measurement)
+                target = self.data['mu_norm'][measurement_filter].to_numpy()
+                
+                weights = Parameters()
+                for i in range(1,n_components):
+                    weights.add(f'w{i}', value=1/n_components, min=0, max=1)
+                weights.add(f'w{n_components}', min=0, max=1, expr='1 - ' + ' - '.join([f'w{i}' for i in range(1,n_components)]))	
+                
+                fit_output = minimize(self._fit_function, weights, args=(components_mu, target))
+
+                # Store data used for LCA
+                list_experiment.append(self.data['Experiment'][measurement_filter].values[0])
+                list_metal.append(metal)
+                list_measurement.append(measurement)
+                list_temperature.append(self.data['Temperature'][measurement_filter].values[0])
+                list_fit_range.append(fit_range)
+                list_energy.append(self.data['Energy'][measurement_filter].to_numpy())
+                list_component_name.append(f'(Ref) Measurement {measurement}')
+                list_component.append(target)
+                list_parameter_name.append(None)
+                list_parameter_value.append(None)
+                list_parameter_error.append(None)
+                # Store LCA results
+                for i, (name, param) in enumerate(fit_output.params.items()):
+                    list_experiment.append(self.data['Experiment'][measurement_filter].values[0])
+                    list_metal.append(metal)
+                    list_measurement.append(measurement)
+                    list_temperature.append(self.data['Temperature'][measurement_filter].values[0])
+                    list_fit_range.append(fit_range)
+                    list_energy.append(self.data['Energy'][measurement_filter].to_numpy())
+                    list_component_name.append(component_names[i])
+                    list_component.append(components_mu[i])
+                    list_parameter_name.append(name)
+                    list_parameter_value.append(param.value)
+                    list_parameter_error.append(param.stderr)
+                    
+        self.LCA_result = pd.DataFrame({
+            'Experiment': list_experiment,
+            'Metal': list_metal,
+            'Measurement': list_measurement,
+            'Temperature': list_temperature,
+            'Fit Range': list_fit_range,
+            'Energy': list_energy,
+            'Component Name': list_component_name,
+            'Component': list_component,
+            'Parameter Name': list_parameter_name,
+            'Parameter Value': list_parameter_value,
+            'Parameter Error': list_parameter_error
+        })
         return None
     
     def PCA(self):
