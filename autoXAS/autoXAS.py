@@ -373,7 +373,7 @@ class autoXAS():
                 # relevant_standards = [name for name in components if metal in name]
                 # components_mu = [self.standards['mu_norm'][self.standards['']] for standard in relevant_standards]
             else:
-                component_measurements = self.data['Measurement'][self.data['Metal'] == metal].values[components]
+                component_measurements = self.data['Measurement'][self.data['Metal'] == metal].unique()[components]
                 component_names = [f'Measurement {meas_num}' for meas_num in component_measurements]
                 n_components = len(component_measurements)
                 if n_components < 2:
