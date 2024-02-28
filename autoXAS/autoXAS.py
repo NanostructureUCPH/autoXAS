@@ -11,11 +11,20 @@ from larch.xafs import pre_edge, find_e0
 from typing import Union
 from lmfit import Parameters, fit_report, minimize
 from lmfit.minimizer import MinimizerResult
+import matplotlib.pyplot as plt
+import seaborn as sns
+import plotly_express as px
+import plotly.graph_objects as go
+import plotly.io as pio
+
+pd.options.mode.chained_assignment = None  # default='warn'
+sns.set_theme()
+pio.renderers.default = 'notebook'
 
 # %% autoXAS class
 
 class autoXAS():
-    def __init__(self) -> None:
+    def __init__(self, metals=None, edges=None) -> None:
         self.data_directory = None
         self.data_type = '.dat'
         self.data = None
@@ -28,10 +37,15 @@ class autoXAS():
         self.I1_columns = None
         self.temperature_column = None
         self.metals = None
-        self.edge_correction_energies = {}
         self.xas_mode = 'Flourescence'
         self.energy_unit = 'eV'
         self.energy_column_unitConversion = 1
+        self.temperature_unit = 'K'
+        self.interactive = False
+        self.edge_correction_energies = {}
+        if metals and edges:
+            self._calculate_edge_shift(metals, edges)
+        
     
     def save_config(self, config_name: str, save_directory: str='./'):
         config = dict(
@@ -45,6 +59,7 @@ class autoXAS():
             xas_mode=self.xas_mode,
             energy_unit=self.energy_unit,
             energy_column_unitConversion=self.energy_column_unitConversion,
+            temperature_unit=self.temperature_unit,
             save_directory=self.save_directory
         )
         with open(save_directory + config_name, 'w') as file:
@@ -65,6 +80,7 @@ class autoXAS():
         self.xas_mode = config['xas_mode']
         self.energy_unit = config['energy_unit']
         self.energy_column_unitConversion = config['energy_column_unitConversion']
+        self.temperature_unit = config['temperature_unit']
         self.save_directory = config['save_directory']
         return None
     
@@ -166,7 +182,7 @@ class autoXAS():
     def load_standards(self, standards_directory: str, standards_type: str='.dat'):
         raise NotImplementedError('Standard loading not implemented yet')
     
-    def calculate_edge_shift(self, metals: list[str], edges: list[str]):
+    def _calculate_edge_shift(self, metals: list[str], edges: list[str]):
         for metal, edge in zip(metals, edges):
             edge_energy_table = xray_edge(metal, edge, energy_only=True)
             
@@ -446,8 +462,10 @@ class autoXAS():
         raise NotImplementedError('NMF not implemented yet')
         return None
     
-    def to_csv(self, filename: str, directory: str='./', columns: Union[None, list[str]]=None):
-        self.data.to_csv(directory + filename + '.csv', index=False, columns=columns)
+    def to_csv(self, filename: str, directory: Union[None, str]=None, columns: Union[None, list[str]]=None):
+        if directory is None:
+            directory = self.save_directory
+        self.data.to_csv(directory + 'data/' + filename + '.csv', index=False, columns=columns)
         return None
     
     def to_athena(self, filename: str, directory: str='./', columns: Union[None, list[str]]=None):
@@ -456,12 +474,153 @@ class autoXAS():
         raise NotImplementedError('Athena export not implemented yet')
         return None
     
-    def plot_data(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_data(self, experiment: Union[str, int]=0, standards: Union[None, list[str]]=None, save: bool=False, filename: str='data', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+            
+        n_measurements = int(self.data['Measurement'][self.data['Experiment'] == experiment].max())
+        experiment_filter = (self.data['Experiment'] == experiment)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = 'Normalized = %{y:.2f}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment
+            fig = px.line(
+                data_frame=self.data[experiment_filter],
+                x='Energy',
+                y='mu_norm',
+                color='Measurement',
+                color_discrete_sequence=px.colors.sample_colorscale('viridis', samplepoints=n_measurements),
+            )
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            if standards:
+                raise NotImplementedError('Standards not implemented yet')
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title='<b>Normalized</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+                
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+                
+        else:
+            # Create figure object and set the figure size
+            plt.figure(figsize=(10,8))
+            
+            # Plot all measurements of specified experiment
+            sns.lineplot(
+                data=self.data[experiment_filter], 
+                x='Energy', 
+                y='mu_norm', 
+                hue='Measurement', 
+                palette='viridis',
+            )
+            # Set limits of x-axis to match the edge measurements
+            plt.xlim(
+                (np.amin(self.data['Energy'][experiment_filter]), 
+                np.amax(self.data['Energy'][experiment_filter]))
+            )
+            # Specify text and formatting of axis labels
+            plt.xlabel(
+                f'Energy [{self.energy_unit}]', 
+                fontsize=14, 
+                fontweight='bold'
+            )
+            plt.ylabel(
+                'Normalized', 
+                fontsize=14, 
+                fontweight='bold'
+            )
+            # Specify placement, formatting and title of the legend
+            plt.legend(
+                loc='center left', 
+                bbox_to_anchor=(1,0.5),
+                title='Measurement', 
+                fontsize=12, 
+                title_fontsize=13, 
+                ncol=1,
+            )
+            # Enforce matplotlibs tight layout
+            plt.tight_layout()
+            if save:
+                plt.savefig(directory + 'figures/' + filename + format)
+            
+            if show:
+                plt.show()
         return None
     
-    def plot_temperature_curve(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_temperature_curve(self, experiment: str, aggregate: bool=False, save: bool=False, filename: str='temperature_curve', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+        if save and directory is None:
+            directory = self.save_directory
+        
+        experiment_filter = (self.data['Experiment'] == experiment)
+        
+        if self.interactive:
+            if aggregate:
+                raise NotImplementedError('Aggregation not implemented yet')
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = 'Temperature = %{y:.1f} ' + self.temperature_unit
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = px.line(
+                data_frame=self.data[experiment_filter],
+                x='Measurement',
+                y=f'Temperature [{self.temperature_unit}]',
+                color='Experiment',
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex()
+            )
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Temperature [{self.temperature_unit}]</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
         return None
     
     def plot_LCA(self):
