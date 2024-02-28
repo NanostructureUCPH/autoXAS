@@ -1,21 +1,22 @@
 # %% Imports
 
+from pathlib import Path
+from typing import Union
+
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import yaml
-from pathlib import Path
-from tqdm.auto import tqdm
-from larch import Group
-from larch.xray import xray_edge
-from larch.xafs import pre_edge, find_e0
-from typing import Union
-from lmfit import Parameters, fit_report, minimize
-from lmfit.minimizer import MinimizerResult
-import matplotlib.pyplot as plt
-import seaborn as sns
-import plotly_express as px
 import plotly.graph_objects as go
 import plotly.io as pio
+import plotly_express as px
+import seaborn as sns
+import yaml
+from larch import Group
+from larch.xafs import find_e0, pre_edge
+from larch.xray import xray_edge
+from lmfit import Parameters, fit_report, minimize
+from lmfit.minimizer import MinimizerResult
+from tqdm.auto import tqdm
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
@@ -233,20 +234,19 @@ class autoXAS():
                     i0_avg = np.zeros_like(df_avg['I0'], dtype=np.float64)
                     i1_avg = np.zeros_like(df_avg['I1'], dtype=np.float64)
                     mu_avg = np.zeros_like(df_avg['mu'], dtype=np.float64)
-                    temperature_avg = np.zeros_like(df_avg['Temperature'], dtype=np.float64)
                     
                     first = False
                 
                 i0_avg += self.data['I0'][measurement_filter].to_numpy()
                 i1_avg += self.data['I1'][measurement_filter].to_numpy()
                 mu_avg += self.data['mu'][measurement_filter].to_numpy()
-                temperature_avg += self.data['Temperature'][measurement_filter].to_numpy()
             
             n_measurements = len(measurements)
             df_avg['I0'] = i0_avg / n_measurements
             df_avg['I1'] = i1_avg / n_measurements
             df_avg['mu'] = mu_avg / n_measurements
-            df_avg['Temperature'] = temperature_avg / n_measurements
+            df_avg['Temperature'] = self.data['Temperature'][measurement_filter].mean()
+            df_avg['Temperature (std)'] = self.data['Temperature'][measurement_filter].std()
             
             avg_measurements.append(df_avg)
             
@@ -283,20 +283,19 @@ class autoXAS():
                         i0_avg = np.zeros_like(df_avg['I0'], dtype=np.float64)
                         i1_avg = np.zeros_like(df_avg['I1'], dtype=np.float64)
                         mu_avg = np.zeros_like(df_avg['mu'], dtype=np.float64)
-                        temperature_avg = np.zeros_like(df_avg['Temperature'], dtype=np.float64)
                         
                     energy_avg += self.data['Energy'][measurement_filter].to_numpy()
                     i0_avg += self.data['I0'][measurement_filter].to_numpy()
                     i1_avg += self.data['I1'][measurement_filter].to_numpy()
                     mu_avg += self.data['mu'][measurement_filter].to_numpy()
-                    temperature_avg += self.data['Temperature'][measurement_filter].to_numpy()
                     
                 n_measurements = len(measurements_to_average_temp)
                 df_avg['Energy'] = energy_avg / n_measurements
                 df_avg['I0'] = i0_avg / n_measurements
                 df_avg['I1'] = i1_avg / n_measurements
                 df_avg['mu'] = mu_avg / n_measurements
-                df_avg['Temperature'] = temperature_avg / n_measurements
+                df_avg['Temperature'] = self.data['Temperature'][measurement_filter].mean()
+                df_avg['Temperature (std)'] = self.data['Temperature'][measurement_filter].std()
                 df_avg['Measurement'] = measurement_number + 1
                 
                 measurements_to_average_temp += n_measurements_to_average
@@ -575,27 +574,25 @@ class autoXAS():
                 plt.show()
         return None
     
-    def plot_temperature_curve(self, experiment: str, aggregate: bool=False, save: bool=False, filename: str='temperature_curve', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+    def plot_temperature_curves(self, save: bool=False, filename: str='temperature_curve', format: str='.png', directory: Union[None, str]=None, show: bool=True):
         if save and directory is None:
             directory = self.save_directory
         
-        experiment_filter = (self.data['Experiment'] == experiment)
-        
         if self.interactive:
-            if aggregate:
-                raise NotImplementedError('Aggregation not implemented yet')
             # Formatting for hover text
             x_formatting = '.0f'
-            hovertemplate = 'Temperature = %{y:.1f} ' + self.temperature_unit
+            hovertemplate = 'Temperature = %{y:.1f} +/- %{customdata[0]:.1f} ' + self.temperature_unit
             hovermode='x unified'
             
             # Plot the measurements of the selected experiment/edge
             fig = px.line(
-                data_frame=self.data[experiment_filter],
+                data_frame=self.data,
                 x='Measurement',
-                y=f'Temperature [{self.temperature_unit}]',
+                y='Temperature',
+                error_y='Temperature (std)',
+                custom_data=['Temperature (std)'],
                 color='Experiment',
-                color_discrete_sequence=sns.color_palette('colorblind').as_hex()
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
             )
             
             # Change line formatting
@@ -604,6 +601,7 @@ class autoXAS():
                     width=2,
                 ),
                 xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
             )
             
             # Specify text and formatting of axis labels
@@ -621,6 +619,8 @@ class autoXAS():
                 
             if show:
                 fig.show()
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
     def plot_LCA(self):
