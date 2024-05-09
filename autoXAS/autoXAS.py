@@ -17,6 +17,7 @@ from larch.xray import xray_edge
 from lmfit import Parameters, fit_report, minimize
 from lmfit.minimizer import MinimizerResult
 from tqdm.auto import tqdm
+from sklearn.decomposition import NMF, PCA
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
@@ -404,10 +405,13 @@ class autoXAS():
         combination = self._linear_combination(weights, components)
         return self._residual(target, combination)
     
-    def LCA(self, use_standards: bool=False, components: Union[list[int], list[str], None]=[0,-1], fit_range: Union[None, tuple[float, float]]=None, verbose: bool=False):
-        # raise NotImplementedError('LCA not implemented yet')
+    def LCA(self, use_standards: bool=False, components: Union[list[int], list[str], None]=[0,-1], fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
         if use_standards and not self.standards:
             raise ValueError('No standards loaded')
+        
+        if isinstance(fit_range, list):
+            if len(fit_range) != len(self.metals):
+                raise ValueError('Number of fit ranges must match number of metals')
         
         # Initialize list to store results
         list_experiment = []
@@ -425,11 +429,6 @@ class autoXAS():
         for metal in tqdm(self.metals, desc='Performing LCA', leave=False):
             if use_standards:
                 raise NotImplementedError('LCA with standards not implemented yet')
-                # if components is None:
-                #     relevant_standards = [name for standard in self.standards[''] if metal in standard]
-                #     components_mu = [self.standards[standard]['mu_norm'] for standard in relevant_standards]
-                # relevant_standards = [name for name in components if metal in name]
-                # components_mu = [self.standards['mu_norm'][self.standards['']] for standard in relevant_standards]
             else:
                 component_measurements = self.data['Measurement'][self.data['Metal'] == metal].unique()[components]
                 component_names = [f'Measurement {meas_num}' for meas_num in component_measurements]
@@ -496,8 +495,66 @@ class autoXAS():
         })
         return None
     
-    def PCA(self):
-        raise NotImplementedError('PCA not implemented yet')
+    def PCA(self, n_components: Union[None, str, float, int, list]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
+        if isinstance(n_components, list):
+            if len(n_components) != len(self.experiments):
+                raise ValueError('Length of list must match number of experiments')
+        else:
+            n_components = [n_components] * len(self.metals)
+        
+        experiment_list = []
+        metal_list = []
+        n_measurements_list = []
+        n_components_list = []
+        explained_variance_list = []
+        explained_variance_ratio_list = []
+        cummulative_explained_variance_list = []
+        energy_list = []
+        component_list = []
+        component_names_list = []
+        component_number_list = []
+        weights_list = []
+        
+        for experiment, n_components in zip(self.experiments, n_components):
+            if fit_range:
+                raise NotImplementedError('Fit range not implemented yet')
+            
+            n_measurements = len(self.data['Measurement'][self.data['Experiment'] == experiment].unique())
+            data = self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(n_measurements, -1)
+            
+            pca = PCA(n_components=n_components)
+            pca.fit(data)
+            pca_weights = pca.transform(data)
+            
+            # Store PCA results
+            for i, component in enumerate(pca.components_):
+                experiment_list.append(experiment)
+                metal_list.append(self.data['Metal'][self.data['Experiment'] == experiment].values[0])
+                n_measurements_list.append(n_measurements)
+                n_components_list.append(pca.n_components_)
+                explained_variance_list.append(pca.explained_variance_[i])
+                explained_variance_ratio_list.append(pca.explained_variance_ratio_[i])
+                cummulative_explained_variance_list.append(pca.explained_variance_ratio_[:i+1].sum())
+                energy_list.append(self.data['Energy'][self.data['Experiment'] == experiment].to_numpy())
+                component_list.append(component)
+                component_names_list.append(f'PC {i+1}')
+                component_number_list.append(i+1)
+                weights_list.append(pca_weights[:,i])
+                
+        self.PCA_result = pd.DataFrame({
+            'Experiment': experiment_list,
+            'Metal': metal_list,
+            'n_measurements': n_measurements_list,
+            'n_components': n_components_list,
+            'explained_variance': explained_variance_list,
+            'explained_variance_ratio': explained_variance_ratio_list,
+            'cummulative_explained_variance': cummulative_explained_variance_list,
+            'Energy': energy_list,
+            'Component': component_list,
+            'Component Name': component_names_list,
+            'Component Number': component_number_list,
+            'Weights': weights_list
+        })       
         return None
     
     def NMF(self):
@@ -531,7 +588,7 @@ class autoXAS():
         if self.interactive:
             # Formatting for hover text
             x_formatting = '.0f'
-            hovertemplate = 'Normalized = %{y:.2f}'
+            hovertemplate = '%{y:.2f}'
             hovermode='x unified'
             
             # Plot the measurements of the selected experiment
@@ -558,7 +615,7 @@ class autoXAS():
             # Specify text and formatting of axis labels
             fig.update_layout(
                 xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
-                yaxis_title='<b>Normalized</b>',
+                yaxis_title='<b>Normalized [a.u.]</b>',
                 font=dict(
                     size=14,
                 ),
@@ -624,7 +681,7 @@ class autoXAS():
         if self.interactive:
             # Formatting for hover text
             x_formatting = '.0f'
-            hovertemplate = 'Temperature = %{y:.1f} +/- %{customdata[0]:.1f} ' + self.temperature_unit
+            hovertemplate = '%{y:.1f} +/- %{customdata[0]:.1f} ' + self.temperature_unit
             hovermode='x unified'
             
             # Plot the measurements of the selected experiment/edge
@@ -667,8 +724,352 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
-    def plot_LCA(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_waterfall(self, experiment: Union[str, int]=0, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='waterfall', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+        
+        experiment_filter = (self.data['Experiment'] == experiment)
+        
+        heatmap_data = self.data[experiment_filter].pivot(index=y_axis, columns='Energy', values='mu_norm')
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.2f'
+            
+            # Plot the measurements of the selected experiment
+            fig = px.imshow(
+                img = heatmap_data,
+                zmin=vmin,
+                zmax=vmax,
+                origin='lower',
+                color_continuous_scale='viridis',
+                aspect='auto',
+                labels=dict(color='<b>Normalized [a.u.]</b>'),
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title=f'<b>{y_axis}</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode='closest',
+                coloraxis=dict(
+                    colorbar=dict(
+                        titleside='right',
+                    ),
+                ),
+            )
+            
+            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} [{self.energy_unit}]<br>Normalized: %{{z:.2f}} [a.u.] <extra></extra>'
+            fig.update_traces(hovertemplate=hovertemplate)
+            
+            # Add and format spikes
+            fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
+            fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        return None
+    
+    def plot_change(self, experiment: Union[str, int]=0, reference_measurement: int=1, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='change', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+        
+        experiment_filter = (self.data['Experiment'] == experiment)
+        experiment_data = self.data[experiment_filter]
+        reference = experiment_data['mu_norm'][(self.data['Measurement'] == reference_measurement)].to_numpy()
+        difference_from_reference = experiment_data['mu_norm'].to_numpy().reshape((-1, reference.shape[0])) - reference
+        experiment_data['Difference from reference'] = difference_from_reference.reshape((-1))
+        
+        heatmap_data = experiment_data.pivot(index=y_axis, columns='Energy', values='Difference from reference')
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.2f'
+            
+            # Plot the measurements of the selected experiment
+            fig = px.imshow(
+                img = heatmap_data,
+                zmin=vmin,
+                zmax=vmax,
+                origin='lower',
+                color_continuous_scale='RdBu_r',
+                color_continuous_midpoint=0.,
+                aspect='auto',
+                labels=dict(color='<b>\u0394 Normalized [a.u.]</b>'),
+            )
+            
+            fig.add_hline(
+                y=experiment_data[y_axis].unique()[reference_measurement-1],
+                line_color='black',
+                line_width=2,
+                annotation_text=f'<b>Reference ({reference_measurement})</b>',
+                annotation_position='top left',
+                annotation_font=dict(
+                    color='black',
+                    size=11,
+                ),
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title=f'<b>{y_axis}</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode='closest',
+                coloraxis=dict(
+                    colorbar=dict(
+                        titleside='right',
+                    ),
+                ),
+            )
+            
+            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} [{self.energy_unit}]<br>\u0394 Normalized: %{{z:.2f}} [a.u.] <extra></extra>'
+            fig.update_traces(hovertemplate=hovertemplate)
+            
+            # Add and format spikes
+            fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
+            fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        return None
+    
+    def plot_LCA(self, experiment: Union[str, int]=0, save: bool=False, filename: str='LCA', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+            
+        experiment_filter = (self.LCA_result['Experiment'] == experiment)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}} +/- %{{customdata[0]:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = line(
+                data_frame=self.LCA_result[experiment_filter],
+                x='Measurement',
+                y='Parameter Value',
+                error_y='Parameter Error',
+                error_y_mode='band',
+                custom_data=['Parameter Error'],
+                color='Parameter Name',
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+                labels={'Parameter Name': 'Component'},
+            )
+
+            for trace in fig["data"]:
+                if trace["name"] != None:
+                    trace["name"] = f"Component {trace['name'][1:]}"
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
+        return None
+    
+    def plot_LCA_frame(self, experiment: Union[str, int]=0, measurement: int=1, save: bool=False, filename: str='LCA_frame', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+
+        data_filter = (self.LCA_result['Experiment'] == experiment) & (self.LCA_result['Measurement'] == measurement)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = '%{y:.2f}'
+            hovermode='x unified'
+            
+            # Plot reference measurement
+            reference = self.LCA_result['Component'][(self.LCA_result['Component Name'] == f'(Ref) Measurement {measurement}') & data_filter].values[0]
+            
+            fig = go.Figure(go.Scatter(
+                x=self.LCA_result['Energy'][(self.LCA_result['Component Name'] == f'(Ref) Measurement {measurement}') & data_filter].values[0],
+                y=reference,
+                name='Data',
+                mode='lines',
+                line=dict(
+                    color='black',
+                    ),
+            ))
+            
+            linear_combination = np.zeros_like(reference)
+            # Plot components
+            for i, component in enumerate(self.LCA_result['Component Name'][data_filter].unique()):
+                if '(Ref)' in component:
+                    continue
+                fig.add_trace(go.Scatter(
+                    x=self.LCA_result['Energy'][(self.LCA_result['Component Name'] == component) & data_filter].values[0],
+                    y=self.LCA_result['Component'][(self.LCA_result['Component Name'] == component) & data_filter].values[0] * self.LCA_result['Parameter Value'][(self.LCA_result['Component Name'] == component) & data_filter].values[0],
+                    name=f"Component {self.LCA_result['Parameter Name'][(self.LCA_result['Component Name'] == component) & data_filter].values[0][1:]}",
+                    mode='lines',
+                    line=dict(
+                        color=sns.color_palette('colorblind').as_hex()[i],
+                        ),
+                ))
+                
+                linear_combination += self.LCA_result['Component'][(self.LCA_result['Component Name'] == component) & data_filter].values[0] * self.LCA_result['Parameter Value'][(self.LCA_result['Component Name'] == component) & data_filter].values[0]
+            
+            # Plot linear combination
+            fig.add_trace(go.Scatter(
+                x=self.LCA_result['Energy'][(self.LCA_result['Component Name'] == f'(Ref) Measurement {measurement}') & data_filter].values[0],
+                y=linear_combination,
+                name='Linear combination',
+                mode='lines',
+                line=dict(
+                    color='magenta',
+                    ),
+            ))
+            
+            # Plot residuals
+            fig.add_trace(go.Scatter(
+                x=self.LCA_result['Energy'][(self.LCA_result['Component Name'] == f'(Ref) Measurement {measurement}') & data_filter].values[0],
+                y=reference - linear_combination,
+                name='Residual',
+                mode='lines',
+                line=dict(
+                    color='red',
+                    ),
+            ))
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title='<b>Normalized [a.u.]</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+                
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        return None
+        
+    def plot_LCA_comparison(self, component: int=2, save: bool=False, filename: str='LCA_comparison', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+        if save and directory is None:
+            directory = self.save_directory
+            
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}} +/- %{{customdata[0]:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = line(
+                data_frame=self.LCA_result[self.LCA_result['Parameter Name'] == f'w{component}'],
+                x='Measurement',
+                y='Parameter Value',
+                error_y='Parameter Error',
+                error_y_mode='band',
+                custom_data=['Parameter Error'],
+                color='Metal',
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+            )
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
     def plot_PCA(self):
