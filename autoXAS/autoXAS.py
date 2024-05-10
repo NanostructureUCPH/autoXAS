@@ -18,6 +18,7 @@ from lmfit import Parameters, fit_report, minimize
 from lmfit.minimizer import MinimizerResult
 from tqdm.auto import tqdm
 from sklearn.decomposition import NMF, PCA
+import warnings
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
@@ -405,6 +406,8 @@ class autoXAS():
         combination = self._linear_combination(weights, components)
         return self._residual(target, combination)
     
+    # Analysis functions
+    
     def LCA(self, use_standards: bool=False, components: Union[list[int], list[str], None]=[0,-1], fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
         if use_standards and not self.standards:
             raise ValueError('No standards loaded')
@@ -495,20 +498,21 @@ class autoXAS():
         })
         return None
     
-    def PCA(self, n_components: Union[None, str, float, int, list]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
+    def PCA(self, n_components: Union[None, str, float, int, list]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None):
         if isinstance(n_components, list):
             if len(n_components) != len(self.experiments):
                 raise ValueError('Length of list must match number of experiments')
         else:
-            n_components = [n_components] * len(self.metals)
+            n_components = [n_components] * len(self.experiments)
         
         experiment_list = []
         metal_list = []
-        n_measurements_list = []
+        measurement_list = []
         n_components_list = []
+        pca_mean_list = []
         explained_variance_list = []
         explained_variance_ratio_list = []
-        cummulative_explained_variance_list = []
+        cumulative_explained_variance_list = []
         energy_list = []
         component_list = []
         component_names_list = []
@@ -519,47 +523,142 @@ class autoXAS():
             if fit_range:
                 raise NotImplementedError('Fit range not implemented yet')
             
-            n_measurements = len(self.data['Measurement'][self.data['Experiment'] == experiment].unique())
-            data = self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(n_measurements, -1)
+            measurements = self.data['Measurement'][self.data['Experiment'] == experiment].unique()
+            data = self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1)
             
-            pca = PCA(n_components=n_components)
+            pca = PCA(n_components=n_components, random_state=seed)
             pca.fit(data)
             pca_weights = pca.transform(data)
             
             # Store PCA results
             for i, component in enumerate(pca.components_):
-                experiment_list.append(experiment)
-                metal_list.append(self.data['Metal'][self.data['Experiment'] == experiment].values[0])
-                n_measurements_list.append(n_measurements)
-                n_components_list.append(pca.n_components_)
-                explained_variance_list.append(pca.explained_variance_[i])
-                explained_variance_ratio_list.append(pca.explained_variance_ratio_[i])
-                cummulative_explained_variance_list.append(pca.explained_variance_ratio_[:i+1].sum())
-                energy_list.append(self.data['Energy'][self.data['Experiment'] == experiment].to_numpy())
-                component_list.append(component)
-                component_names_list.append(f'PC {i+1}')
-                component_number_list.append(i+1)
-                weights_list.append(pca_weights[:,i])
+                for measurement in measurements:
+                    experiment_list.append(experiment)
+                    metal_list.append(self.data['Metal'][self.data['Experiment'] == experiment].values[0])
+                    measurement_list.append(measurement)
+                    n_components_list.append(pca.n_components_)
+                    pca_mean_list.append(pca.mean_)
+                    explained_variance_list.append(pca.explained_variance_[i])
+                    explained_variance_ratio_list.append(pca.explained_variance_ratio_[i])
+                    cumulative_explained_variance_list.append(pca.explained_variance_ratio_[:i+1].sum())
+                    energy_list.append(self.data['Energy'][self.data['Experiment'] == experiment].to_numpy())
+                    component_list.append(component)
+                    component_names_list.append(f'PC {i+1}')
+                    component_number_list.append(i+1)
+                    weights_list.append(pca_weights[measurement-1,i])
                 
         self.PCA_result = pd.DataFrame({
             'Experiment': experiment_list,
             'Metal': metal_list,
-            'n_measurements': n_measurements_list,
+            'Measurement': measurement_list,
             'n_components': n_components_list,
-            'explained_variance': explained_variance_list,
-            'explained_variance_ratio': explained_variance_ratio_list,
-            'cummulative_explained_variance': cummulative_explained_variance_list,
+            'PCA Mean': pca_mean_list,
+            'Explained Variance': explained_variance_list,
+            'Explained Variance Ratio': explained_variance_ratio_list,
+            'Cumulative Explained Variance': cumulative_explained_variance_list,
             'Energy': energy_list,
             'Component': component_list,
             'Component Name': component_names_list,
             'Component Number': component_number_list,
-            'Weights': weights_list
+            'Weight': weights_list
         })       
         return None
     
-    def NMF(self):
-        raise NotImplementedError('NMF not implemented yet')
+    def NMF(self, n_components: Union[None, str, float, int, list]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None):
+        if isinstance(n_components, list):
+            if len(n_components) != len(self.experiments):
+                raise ValueError('Length of list must match number of experiments')
+        else:
+            n_components = [n_components] * len(self.experiments)
+            
+        experiment_list = []
+        metal_list = []
+        measurement_list = []
+        n_components_list = []
+        energy_list = []
+        component_list = []
+        component_names_list = []
+        component_number_list = []
+        weights_list = []
+        
+        for experiment, n_components in zip(self.experiments, n_components):
+            if fit_range:
+                raise NotImplementedError('Fit range not implemented yet')
+            
+            measurements = self.data['Measurement'][self.data['Experiment'] == experiment].unique()
+            data = np.clip(self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1), a_min=0, a_max=None)
+            
+            nmf = NMF(n_components=n_components, random_state=seed)
+            nmf.fit(data)
+            nmf_weights = nmf.transform(data)
+            
+            # Store NMF results
+            for i, component in enumerate(nmf.components_):
+                for measurement in measurements:
+                    experiment_list.append(experiment)
+                    metal_list.append(self.data['Metal'][self.data['Experiment'] == experiment].values[0])
+                    measurement_list.append(measurement)
+                    n_components_list.append(nmf.n_components_)
+                    energy_list.append(self.data['Energy'][self.data['Experiment'] == experiment].to_numpy())
+                    component_list.append(component)
+                    component_names_list.append(f'Component {i+1}')
+                    component_number_list.append(i+1)
+                    weights_list.append(nmf_weights[measurement-1,i])
+        
+        self.NMF_result = pd.DataFrame({
+            'Experiment': experiment_list,
+            'Metal': metal_list,
+            'Measurement': measurement_list,
+            'n_components': n_components_list,
+            'Energy': energy_list,
+            'Component': component_list,
+            'Component Name': component_names_list,
+            'Component Number': component_number_list,
+            'Weight': weights_list
+        })
+        
         return None
+    
+    def _determine_NMF_components(self, change_cutoff: int, change_type: str='abs', fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
+        
+        experiment_list = []
+        n_components_list = []
+        reconstruction_error_list = []
+        
+        for experiment in self.experiments:
+            if fit_range:
+                raise NotImplementedError('Fit range not implemented yet')
+            
+            measurements = self.data['Measurement'][self.data['Experiment'] == experiment].unique()
+            data = np.clip(self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1), a_min=0, a_max=None)
+            
+            for n_components in range(len(measurements)):
+                nmf = NMF(n_components=n_components + 1)
+                nmf.fit(data)
+                
+                # Log reconstruction error
+                experiment_list.append(experiment)
+                n_components_list.append(n_components + 1)
+                reconstruction_error_list.append(nmf.reconstruction_err_)
+        
+        NMF_component_results = pd.DataFrame({
+            'Experiment': experiment_list,
+            'n_components': n_components_list,
+            'Reconstruction Error': reconstruction_error_list
+        })
+        
+        NMF_component_results['abs'] = NMF_component_results.groupby('Experiment')['Reconstruction Error'].diff().abs()
+        NMF_component_results['rel'] = NMF_component_results.groupby('Experiment')['Reconstruction Error'].pct_change().abs()
+        
+        nmf_k = []
+        for experiment in self.experiments:
+            k = NMF_component_results['n_components'][(NMF_component_results['Experiment'] == experiment) & (NMF_component_results[change_type] > change_cutoff)].max()
+            nmf_k.append(k)
+        
+        return nmf_k, NMF_component_results
+        
+    
+    # Data export functions
     
     def to_csv(self, filename: str, directory: Union[None, str]=None, columns: Union[None, list[str]]=None):
         if directory is None:
@@ -573,7 +672,9 @@ class autoXAS():
         raise NotImplementedError('Athena export not implemented yet')
         return None
     
-    def plot_data(self, experiment: Union[str, int]=0, standards: Union[None, list[str]]=None, save: bool=False, filename: str='data', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+    # Plotting functions
+    
+    def plot_data(self, experiment: Union[str, int]=0, standards: Union[None, list[str]]=None, save: bool=False, filename: str='data', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
@@ -588,7 +689,7 @@ class autoXAS():
         if self.interactive:
             # Formatting for hover text
             x_formatting = '.0f'
-            hovertemplate = '%{y:.2f}'
+            hovertemplate = f'%{{y:{hover_format}}}'
             hovermode='x unified'
             
             # Plot the measurements of the selected experiment
@@ -612,8 +713,16 @@ class autoXAS():
             if standards:
                 raise NotImplementedError('Standards not implemented yet')
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Normalized data<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
                 yaxis_title='<b>Normalized [a.u.]</b>',
                 font=dict(
@@ -674,7 +783,7 @@ class autoXAS():
                 plt.show()
         return None
     
-    def plot_temperature_curves(self, save: bool=False, filename: str='temperature_curve', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+    def plot_temperature_curves(self, save: bool=False, filename: str='temperature_curve', format: str='.png', directory: Union[None, str]=None, show: bool=True, show_title: bool=True):
         if save and directory is None:
             directory = self.save_directory
         
@@ -705,8 +814,16 @@ class autoXAS():
                 hovertemplate=hovertemplate,
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Temperature curves</b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title='<b>Measurement</b>',
                 yaxis_title=f'<b>Temperature [{self.temperature_unit}]</b>',
                 font=dict(
@@ -724,7 +841,7 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
-    def plot_waterfall(self, experiment: Union[str, int]=0, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='waterfall', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+    def plot_waterfall(self, experiment: Union[str, int]=0, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='waterfall', format: str='.png', directory: Union[None, str]=None, show: bool=True, show_title: bool=True):
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
@@ -752,8 +869,16 @@ class autoXAS():
                 labels=dict(color='<b>Normalized [a.u.]</b>'),
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b><i>In situ</i> overview<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
                 yaxis_title=f'<b>{y_axis}</b>',
                 font=dict(
@@ -767,7 +892,7 @@ class autoXAS():
                 ),
             )
             
-            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} [{self.energy_unit}]<br>Normalized: %{{z:.2f}} [a.u.] <extra></extra>'
+            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>Normalized: %{{z:.2f}}<extra></extra>'
             fig.update_traces(hovertemplate=hovertemplate)
             
             # Add and format spikes
@@ -783,7 +908,7 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
-    def plot_change(self, experiment: Union[str, int]=0, reference_measurement: int=1, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='change', format: str='.png', directory: Union[None, str]=None, show: bool=True):
+    def plot_change(self, experiment: Union[str, int]=0, reference_measurement: int=1, y_axis: str='Measurement', vmin: Union[None, float]=None, vmax: Union[None, float]=None, save: bool=False, filename: str='change', format: str='.png', directory: Union[None, str]=None, show: bool=True, show_title: bool=True):
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
@@ -820,7 +945,7 @@ class autoXAS():
                 y=experiment_data[y_axis].unique()[reference_measurement-1],
                 line_color='black',
                 line_width=2,
-                annotation_text=f'<b>Reference ({reference_measurement})</b>',
+                annotation_text=f'<b>Reference (Measurement {reference_measurement})</b>',
                 annotation_position='top left',
                 annotation_font=dict(
                     color='black',
@@ -828,8 +953,16 @@ class autoXAS():
                 ),
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b><i>In situ</i> changes<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
                 yaxis_title=f'<b>{y_axis}</b>',
                 font=dict(
@@ -843,7 +976,7 @@ class autoXAS():
                 ),
             )
             
-            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} [{self.energy_unit}]<br>\u0394 Normalized: %{{z:.2f}} [a.u.] <extra></extra>'
+            hovertemplate = f'Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>\u0394 Normalized: %{{z:.2f}}<extra></extra>'
             fig.update_traces(hovertemplate=hovertemplate)
             
             # Add and format spikes
@@ -859,7 +992,7 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
-    def plot_LCA(self, experiment: Union[str, int]=0, save: bool=False, filename: str='LCA', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+    def plot_LCA(self, experiment: Union[str, int]=0, save: bool=False, filename: str='LCA', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
@@ -902,8 +1035,16 @@ class autoXAS():
                 hovertemplate=hovertemplate,
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Linear Combination Analysis<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title='<b>Measurement</b>',
                 yaxis_title=f'<b>Weight</b>',
                 font=dict(
@@ -923,7 +1064,7 @@ class autoXAS():
         
         return None
     
-    def plot_LCA_frame(self, experiment: Union[str, int]=0, measurement: int=1, save: bool=False, filename: str='LCA_frame', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+    def plot_LCA_frame(self, experiment: Union[str, int]=0, measurement: int=1, save: bool=False, filename: str='LCA_frame', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
@@ -937,7 +1078,7 @@ class autoXAS():
         if self.interactive:
             # Formatting for hover text
             x_formatting = '.0f'
-            hovertemplate = '%{y:.2f}'
+            hovertemplate = f'%{{y:{hover_format}}}'
             hovermode='x unified'
             
             # Plot reference measurement
@@ -1001,8 +1142,16 @@ class autoXAS():
                 hovertemplate=hovertemplate,
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Linear Combination Analysis<br><sup><i>{experiment} - Measurement {measurement}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
                 yaxis_title='<b>Normalized [a.u.]</b>',
                 font=dict(
@@ -1021,7 +1170,7 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
         
-    def plot_LCA_comparison(self, component: int=2, save: bool=False, filename: str='LCA_comparison', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f'):
+    def plot_LCA_comparison(self, component: int=2, save: bool=False, filename: str='LCA_comparison', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
         if save and directory is None:
             directory = self.save_directory
             
@@ -1052,8 +1201,16 @@ class autoXAS():
                 hovertemplate=hovertemplate,
             )
             
+            # Specify title text
+            if show_title:
+                title_text = f'<b>LCA Transition Comparison<br><sup><i>Component {component}</i></sup></b>'
+            else:
+                title_text = ''
+            
             # Specify text and formatting of axis labels
             fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
                 xaxis_title='<b>Measurement</b>',
                 yaxis_title=f'<b>Weight</b>',
                 font=dict(
@@ -1072,10 +1229,417 @@ class autoXAS():
             raise NotImplementedError('Matplotlib plot not implemented yet')
         return None
     
-    def plot_PCA(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_PCA(self, experiment: Union[str, int]=0, save: bool=False, filename: str='PCA', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+            
+        experiment_filter = (self.PCA_result['Experiment'] == experiment)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = px.line(
+                data_frame=self.PCA_result[experiment_filter],
+                x='Measurement',
+                y='Weight',
+                color='Component Name',
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+                labels={'Parameter Name': 'Component'},
+            )
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Principal Component Analysis<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        return None
+    
+    def plot_PCA_frame(self, experiment: Union[str, int]=0, measurement: int=1, save: bool=False, filename: str='PCA_frame', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+
+        data_filter = (self.PCA_result['Experiment'] == experiment) & (self.PCA_result['Measurement'] == measurement)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot reference measurement
+            reference = self.data['mu_norm'][(self.data['Experiment'] == experiment) & (self.data['Measurement'] == measurement)].to_numpy()
+            
+            fig = go.Figure(go.Scatter(
+                x=self.PCA_result['Energy'][(self.PCA_result['Component Name'] == f'PC 1') & data_filter].values[0],
+                y=reference,
+                name='Data',
+                mode='lines',
+                line=dict(
+                    color='black',
+                    ),
+            ))
+            
+            # Plot PCA mean
+            pca_mean = self.PCA_result['PCA Mean'][data_filter].values[0] 
+            
+            fig.add_trace(go.Scatter(
+                x=self.PCA_result['Energy'][(self.PCA_result['Component Name'] == f'PC 1') & data_filter].values[0],
+                y=pca_mean,
+                name='PCA mean',
+                mode='lines',
+                line=dict(
+                    color='grey',
+                    ),
+            ))
+            
+            pca_reconstruction = np.zeros_like(reference)
+            
+            # Plot components
+            for i, component in enumerate(self.PCA_result['Component Name'][data_filter].unique()):
+                fig.add_trace(go.Scatter(
+                    x=self.PCA_result['Energy'][(self.PCA_result['Component Name'] == component) & data_filter].values[0],
+                    y=self.PCA_result['Component'][(self.PCA_result['Component Name'] == component) & data_filter].values[0] * self.PCA_result['Weight'][(self.PCA_result['Component Name'] == component) & data_filter].values[0],
+                    name=component,
+                    mode='lines',
+                    line=dict(
+                        color=sns.color_palette('colorblind').as_hex()[i],
+                        ),
+                ))
+
+                pca_reconstruction += self.PCA_result['Component'][(self.PCA_result['Component Name'] == component) & data_filter].values[0] * self.PCA_result['Weight'][(self.PCA_result['Component Name'] == component) & data_filter].values[0]
+            
+            pca_reconstruction += pca_mean
+            
+            # Plot PCA reconstruction
+            fig.add_trace(go.Scatter(
+                x=self.PCA_result['Energy'][(self.PCA_result['Component Name'] == f'PC 1') & data_filter].values[0],
+                y=pca_reconstruction,
+                name='PCA reconstruction',
+                mode='lines',
+                line=dict(
+                    color='magenta',
+                    ),
+            ))
+            
+            # Plot residual
+            fig.add_trace(go.Scatter(
+                x=self.PCA_result['Energy'][(self.PCA_result['Component Name'] == f'PC 1') & data_filter].values[0],
+                y=reference - pca_reconstruction,
+                name='Residual',
+                mode='lines',
+                line=dict(
+                    color='red',
+                    ),
+            ))
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Principal Component Analysis<br><sup><i>{experiment} - Measurement {measurement}</i></sup></b>'
+            else:
+                title_text = ''
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title='<b>Normalized [a.u.]</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+                
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+    
+    def plot_PCA_comparison(self, component: Union[int, list[int]]=1, save: bool=False, filename: str='PCA_comparison', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if save and directory is None:
+            directory = self.save_directory
+        
+        if isinstance(component, list):
+            if len(component) != len(self.experiments):
+                raise ValueError('Length of list must match number of experiments')
+        else:
+            component = [component]*len(self.experiments)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = go.Figure()
+            
+            for i, experiment in enumerate(self.experiments):
+                data_filter = (self.PCA_result['Experiment'] == experiment) & (self.PCA_result['Component Number'] == component[i])
+                
+                fig.add_trace(go.Scatter(
+                    x=self.PCA_result['Measurement'][data_filter],
+                    y=self.PCA_result['Weight'][data_filter],
+                    name=self.PCA_result['Metal'][data_filter].values[0] + f' (PC {component[i]})',
+                    mode='lines',
+                    line=dict(
+                        color=sns.color_palette('colorblind').as_hex()[i],
+                        ),
+                ))
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>PCA Transition Comparison</b>'
+            else:
+                title_text = ''
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+        return None
+    
+    def plot_PCA_explained_variance(self, plot_type: str='cumulative', variance_threshold: Union[None, float]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None, save: bool=False, filename: str='PCA_explained_variance', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2%', show_title: bool=True):
+        
+        if save and directory is None:
+            directory = self.save_directory
+            
+        if plot_type not in ['ratio', 'cumulative']:
+            raise ValueError('Invalid plot type. Choose between "ratio" and "cumulative"')
+        
+        experiment_list = []
+        metal_list = []
+        component_number_list = []
+        component_name_list = []
+        explained_variance_list = []
+        explained_variance_ratio_list = []
+        cumulative_explained_variance_list = []
+        
+        for experiment in self.experiments:
+            if fit_range:
+                raise NotImplementedError('Fit range not implemented yet')
+            
+            measurements = self.data['Measurement'][self.data['Experiment'] == experiment].unique()
+            data = self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1)
+            
+            pca = PCA(random_state=seed)
+            pca.fit(data)
+            
+            # Store PCA results
+            for i in range(pca.n_components_ + 1):
+                experiment_list.append(experiment)
+                metal_list.append(self.data['Metal'][self.data['Experiment'] == experiment].values[0])
+                component_number_list.append(i)
+                component_name_list.append(f'PC {i}')
+                if i == 0:
+                    explained_variance_list.append(0)
+                    explained_variance_ratio_list.append(0)
+                    cumulative_explained_variance_list.append(0)
+                else:
+                    explained_variance_list.append(pca.explained_variance_[i-1])
+                    explained_variance_ratio_list.append(pca.explained_variance_ratio_[i-1])
+                    cumulative_explained_variance_list.append(pca.explained_variance_ratio_[:i].sum())
+        
+        pca_results = pd.DataFrame({
+            'Experiment': experiment_list,
+            'Metal': metal_list,
+            'Component Number': component_number_list,
+            'Component Name': component_name_list,
+            'Explained Variance': explained_variance_list,
+            'Explained Variance Ratio': explained_variance_ratio_list,
+            'Cumulative Explained Variance': cumulative_explained_variance_list,
+        })
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            if plot_type == 'ratio':
+                fig = px.bar(
+                    data_frame=pca_results[pca_results['Component Number'] != 0],
+                    x='Component Name',
+                    y='Explained Variance Ratio',
+                    color='Metal',
+                    color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+                    barmode='group',
+                )
+                
+                # Specify axis titles
+                xaxis_title = '<b>Principal Components</b>'
+                yaxis_title = '<b>Explained Variance</b>'
+                
+                # Specify title text
+                if show_title:
+                    title_text = f'<b>Explained Variance Ratio</b>'
+                else:
+                    title_text = ''
+                
+                # Change bar formatting
+                fig.update_traces(
+                    marker=dict(
+                        line=dict(
+                            width=1,
+                        ),
+                    ),
+                    xhoverformat=x_formatting,
+                    hovertemplate=hovertemplate,
+                )
+                
+            elif plot_type == 'cumulative':
+                fig = px.line(
+                    data_frame=pca_results,
+                    x='Component Number',
+                    y='Cumulative Explained Variance',
+                    color='Metal',
+                    color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+                )
+                
+                # Specify axis titles
+                xaxis_title = '<b>Number of Principal Components</b>'
+                yaxis_title = '<b>Explained Variance</b>'
+                
+                # Specify title text
+                if show_title:
+                    title_text = f'<b>Cumulative Explained Variance</b>'
+                else:
+                    title_text = ''
+                
+                if variance_threshold:
+                    fig.add_hline(
+                        y=variance_threshold,
+                        line_color='black',
+                        line_width=2,
+                        line_dash='dash',
+                        annotation_text=f'<b>{variance_threshold:.0%}</b>',
+                        annotation_position='bottom right',
+                        annotation_font=dict(
+                            color='black',
+                            size=12,
+                        ),
+                    )                
+                
+                # Change line formatting
+                fig.update_traces(
+                    line=dict(
+                        width=2,
+                    ),
+                    xhoverformat=x_formatting,
+                    hovertemplate=hovertemplate,
+                )
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title=xaxis_title,
+                yaxis_title=yaxis_title,
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+                yaxis=dict(
+                    tickformat='.0%',
+                ),
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+            
+            if show:
+                fig.show()
+            
         return None
     
     def plot_NMF(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_NMF_frame(self):
+        raise NotImplementedError('Plotting not implemented yet')
+        return None
+    
+    def plot_NMF_comparison(self):
         raise NotImplementedError('Plotting not implemented yet')
         return None
