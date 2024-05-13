@@ -564,10 +564,12 @@ class autoXAS():
         })       
         return None
     
-    def NMF(self, n_components: Union[None, str, float, int, list]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None):
+    def NMF(self, n_components: Union[None, str, float, int, list]=None, change_cutoff: float=0.25, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None):
         if isinstance(n_components, list):
             if len(n_components) != len(self.experiments):
                 raise ValueError('Length of list must match number of experiments')
+        elif n_components is None:
+            n_components = self._determine_NMF_components(change_cutoff=change_cutoff, fit_range=fit_range)
         else:
             n_components = [n_components] * len(self.experiments)
             
@@ -586,9 +588,11 @@ class autoXAS():
                 raise NotImplementedError('Fit range not implemented yet')
             
             measurements = self.data['Measurement'][self.data['Experiment'] == experiment].unique()
-            data = np.clip(self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1), a_min=0, a_max=None)
+            data = self.data['mu_norm'][self.data['Experiment'] == experiment].to_numpy().reshape(len(measurements), -1)
+            # Remove negative values
+            data -= data.min()
             
-            nmf = NMF(n_components=n_components, random_state=seed)
+            nmf = NMF(n_components=n_components, random_state=seed, init='nndsvda')
             nmf.fit(data)
             nmf_weights = nmf.transform(data)
             
@@ -619,7 +623,7 @@ class autoXAS():
         
         return None
     
-    def _determine_NMF_components(self, change_cutoff: int, change_type: str='abs', fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
+    def _determine_NMF_components(self, change_cutoff: int, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None):
         
         experiment_list = []
         n_components_list = []
@@ -647,15 +651,16 @@ class autoXAS():
             'Reconstruction Error': reconstruction_error_list
         })
         
-        NMF_component_results['abs'] = NMF_component_results.groupby('Experiment')['Reconstruction Error'].diff().abs()
-        NMF_component_results['rel'] = NMF_component_results.groupby('Experiment')['Reconstruction Error'].pct_change().abs()
+        NMF_component_results['Absolute Change'] = NMF_component_results.groupby('Experiment')['Reconstruction Error'].diff().abs()
         
         nmf_k = []
         for experiment in self.experiments:
-            k = NMF_component_results['n_components'][(NMF_component_results['Experiment'] == experiment) & (NMF_component_results[change_type] > change_cutoff)].max()
+            _nmf = NMF_component_results[NMF_component_results['Experiment'] == experiment]
+            _derivative = np.absolute(np.gradient(_nmf['Reconstruction Error'], _nmf['n_components']))
+            k = _nmf['n_components'][_derivative > np.abs(change_cutoff)].max()
             nmf_k.append(k)
-        
-        return nmf_k, NMF_component_results
+
+        return nmf_k
         
     
     # Data export functions
@@ -1476,6 +1481,10 @@ class autoXAS():
                 
             if show:
                 fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
         return None
     
     def plot_PCA_explained_variance(self, plot_type: str='cumulative', variance_threshold: Union[None, float]=None, fit_range: Union[None, tuple[float, float], list[tuple[float, float]]]=None, seed: Union[None, int]=None, save: bool=False, filename: str='PCA_explained_variance', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2%', show_title: bool=True):
@@ -1630,16 +1639,248 @@ class autoXAS():
             if show:
                 fig.show()
             
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
         return None
     
-    def plot_NMF(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_NMF(self, experiment: Union[str, int]=0, save: bool=False, filename: str='NMF', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+
+        if save and directory is None:
+            directory = self.save_directory
+        
+        experiment_filter = (self.NMF_result['Experiment'] == experiment)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = px.line(
+                data_frame=self.NMF_result[experiment_filter],
+                x='Measurement',
+                y='Weight',
+                color='Component Name',
+                color_discrete_sequence=sns.color_palette('colorblind').as_hex(),
+                labels={'Parameter Name': 'Component'},
+            )
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Non-negative Matrix Factorization<br><sup><i>{experiment}</i></sup></b>'
+            else:
+                title_text = ''
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+        
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
         return None
     
-    def plot_NMF_frame(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_NMF_frame(self, experiment: Union[str, int]=0, measurement: int=1, save: bool=False, filename: str='NMF_frame', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if isinstance(experiment, int):
+            experiment = self.experiments[experiment]
+        elif isinstance(experiment, str) and experiment not in self.experiments:
+            raise ValueError('Invalid experiment name')
+        
+        if save and directory is None:
+            directory = self.save_directory
+        
+        data_filter = (self.NMF_result['Experiment'] == experiment) & (self.NMF_result['Measurement'] == measurement)
+        
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot reference measurement
+            reference = self.data['mu_norm'][(self.data['Experiment'] == experiment) & (self.data['Measurement'] == measurement)].to_numpy()
+            
+            fig = go.Figure(go.Scatter(
+                x=self.NMF_result['Energy'][(self.NMF_result['Component Name'] == f'Component 1') & data_filter].values[0],
+                y=reference,
+                name='Data',
+                mode='lines',
+                line=dict(
+                    color='black',
+                    ),
+            ))
+            
+            nmf_reconstruction = np.zeros_like(reference)
+            
+            # Plot components
+            for i, component in enumerate(self.NMF_result['Component Name'][data_filter].unique()):
+                fig.add_trace(go.Scatter(
+                    x=self.NMF_result['Energy'][(self.NMF_result['Component Name'] == component) & data_filter].values[0],
+                    y=self.NMF_result['Component'][(self.NMF_result['Component Name'] == component) & data_filter].values[0] * self.NMF_result['Weight'][(self.NMF_result['Component Name'] == component) & data_filter].values[0],
+                    name=component,
+                    mode='lines',
+                    line=dict(
+                        color=sns.color_palette('colorblind').as_hex()[i],
+                        ),
+                ))
+
+                nmf_reconstruction += self.NMF_result['Component'][(self.NMF_result['Component Name'] == component) & data_filter].values[0] * self.NMF_result['Weight'][(self.NMF_result['Component Name'] == component) & data_filter].values[0]
+            
+            # Plot NMF reconstruction
+            fig.add_trace(go.Scatter(
+                x=self.NMF_result['Energy'][(self.NMF_result['Component Name'] == f'Component 1') & data_filter].values[0],
+                y=nmf_reconstruction,
+                name='NMF reconstruction',
+                mode='lines',
+                line=dict(
+                    color='magenta',
+                    ),
+            ))
+
+            # Plot residual
+            fig.add_trace(go.Scatter(
+                x=self.NMF_result['Energy'][(self.NMF_result['Component Name'] == f'Component 1') & data_filter].values[0],
+                y=reference - nmf_reconstruction,
+                name='Residual',
+                mode='lines',
+                line=dict(
+                    color='red',
+                    ),
+            ))
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>Non-negative Matrix Factorization<br><sup><i>{experiment} - Measurement {measurement}</i></sup></b>'
+            else:
+                title_text = ''
+                
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title=f'<b>Energy [{self.energy_unit}]</b>',
+                yaxis_title='<b>Normalized [a.u.]</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+        
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
         return None
     
-    def plot_NMF_comparison(self):
-        raise NotImplementedError('Plotting not implemented yet')
+    def plot_NMF_comparison(self, component: Union[int, list[int]]=1, save: bool=False, filename: str='NMF_comparison', format: str='.png', directory: Union[None, str]=None, show: bool=True, hover_format: str='.2f', show_title: bool=True):
+        if save and directory is None:
+            directory = self.save_directory
+            
+        if isinstance(component, list):
+            if len(component) != len(self.experiments):
+                raise ValueError('Length of list must match number of experiments')
+        else:
+            component = [component]*len(self.experiments)
+            
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = '.0f'
+            hovertemplate = f'%{{y:{hover_format}}}'
+            hovermode='x unified'
+            
+            # Plot the measurements of the selected experiment/edge
+            fig = go.Figure()
+            
+            for i, experiment in enumerate(self.experiments):
+                data_filter = (self.NMF_result['Experiment'] == experiment) & (self.NMF_result['Component Number'] == component[i])
+                
+                fig.add_trace(go.Scatter(
+                    x=self.NMF_result['Measurement'][data_filter],
+                    y=self.NMF_result['Weight'][data_filter],
+                    name=self.NMF_result['Metal'][data_filter].values[0] + f' (Component {component[i]})',
+                    mode='lines',
+                    line=dict(
+                        color=sns.color_palette('colorblind').as_hex()[i],
+                        ),
+                ))
+            
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
+            
+            # Specify title text
+            if show_title:
+                title_text = f'<b>NMF Transition Comparison</b>'
+            else:
+                title_text = ''
+            
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x = 0.5,
+                xaxis_title='<b>Measurement</b>',
+                yaxis_title=f'<b>Weight</b>',
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+            
+            if save:
+                fig.write_image(directory + 'figures/' + filename + format)
+                
+            if show:
+                fig.show()
+                
+        else:
+            raise NotImplementedError('Matplotlib plot not implemented yet')
+        
         return None
