@@ -14,11 +14,9 @@ import yaml
 from larch import Group
 from larch.xafs import find_e0, pre_edge
 from larch.xray import xray_edge
-from lmfit import Parameters, fit_report, minimize
-from lmfit.minimizer import MinimizerResult
-from tqdm.auto import tqdm
+from lmfit import Parameters, minimize
 from sklearn.decomposition import NMF, PCA
-import warnings
+from tqdm.auto import tqdm
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
