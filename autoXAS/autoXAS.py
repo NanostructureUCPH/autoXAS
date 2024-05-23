@@ -125,7 +125,17 @@ class autoXAS:
 
         return None
 
-    def load_config(self, config_name: str, directory: str = "./"):
+    def load_config(self, config_name: str, directory: str = "./") -> None:
+        """
+        Load configuration file.
+
+        Args:
+            config_name (str): Name of the configuration file.
+            directory (str, optional): Directory where the configuration file is located. Defaults to "./".
+
+        Returns:
+            None: Function does not return anything.
+        """
         with open(directory + config_name, "r") as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
         self.data_directory = config["data_directory"]
@@ -142,7 +152,17 @@ class autoXAS:
         self.save_directory = config["save_directory"]
         return None
 
-    def _read_data(self):
+    def _read_data(self) -> None:
+        """
+        Read data files and store in DataFrame.
+
+        Raises:
+            ValueError: No data directory specified.
+            NotImplementedError: HDF5 file reading not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if self.data_directory is None:
             raise ValueError("No data directory specified")
 
@@ -241,10 +261,36 @@ class autoXAS:
             raise NotImplementedError("HDF5 file reading not implemented yet")
         return None
 
-    def load_standards(self, standards_directory: str, standards_type: str = ".dat"):
-        raise NotImplementedError("Standard loading not implemented yet")
+    def load_standards(
+        self, standards_directory: str, standards_type: str = ".dat"
+    ) -> None:
+        """
+        Load experimental standards and store in DataFrame.
 
-    def _calculate_edge_shift(self, metals: list[str], edges: list[str]):
+        Args:
+            standards_directory (str): Directory where the standards are located.
+            standards_type (str, optional): Type of the data files. Defaults to ".dat".
+
+        Raises:
+            NotImplementedError: Standard loading not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+        raise NotImplementedError("Standard loading not implemented yet")
+        return None
+
+    def _calculate_edge_shift(self, metals: list[str], edges: list[str]) -> None:
+        """
+        Calculate the shift in edge energy for each metal and edge pair.
+
+        Args:
+            metals (list[str]): List of metals.
+            edges (list[str]): List of edges.
+
+        Returns:
+            None: Function does not return anything.
+        """
         for metal, edge in zip(metals, edges):
             edge_energy_table = xray_edge(metal, edge, energy_only=True)
 
@@ -260,7 +306,13 @@ class autoXAS:
             )
         return None
 
-    def _energy_correction(self):
+    def _energy_correction(self) -> None:
+        """
+        Correct energy range and align measured energy points for each experiment.
+
+        Returns:
+            None: Function does not return anything.
+        """
         for experiment in tqdm(self.experiments, desc="Energy correction", leave=False):
             experiment_filter = self.data["Experiment"] == experiment
             n_measurements = self.data["Measurement"][experiment_filter].max()
@@ -305,7 +357,16 @@ class autoXAS:
 
     def _average_data(
         self, measurements_to_average: Union[str, list[int], np.ndarray, range] = "all"
-    ):
+    ) -> None:
+        """
+        Average data points for each experiment.
+
+        Args:
+            measurements_to_average (Union[str, list[int], np.ndarray, range], optional): Measurements to average. Defaults to "all".
+
+        Returns:
+            None: Function does not return anything.
+        """
         avg_measurements = []
         for experiment in tqdm(self.experiments, desc="Averaging data", leave=False):
             first = True
@@ -349,7 +410,20 @@ class autoXAS:
 
     def _average_data_periodic(
         self, period: Union[None, int] = None, n_periods: Union[None, int] = None
-    ):
+    ) -> None:
+        """
+        Average data points for each experiment using periodic grouping of measurements.
+
+        Args:
+            period (Union[None, int], optional): Number of measurements to group for averaging. Will determine the number of periods automatically. Defaults to None.
+            n_periods (Union[None, int], optional): Number of periods to group for averaging. Will determine the number of measurements per period automatically. Defaults to None.
+
+        Raises:
+            Exception: Exactly 1 optional argument should be given.
+
+        Returns:
+            None: Function does not return anything.
+        """
         avg_measurements = []
         if (period and n_periods) or (not period and not n_periods):
             n_arguments = bool(period) + bool(n_periods)
@@ -414,7 +488,18 @@ class autoXAS:
         self.data = pd.concat(avg_measurements)
         return None
 
-    def _normalize_data(self):
+    def _normalize_data(self) -> None:
+        """
+        Normalize data by subtracting the pre-edge fit and dividing by the post-edge fit.
+
+        Pre- and post-edge fits are done using the `larch.xafs.pre_edge` function.
+
+        Raises:
+            ValueError: No data to normalize.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if self.data is None:
             raise ValueError("No data to normalize")
 
@@ -424,8 +509,7 @@ class autoXAS:
 
         for experiment in tqdm(self.experiments, desc="Normalizing data", leave=False):
             experiment_filter = self.data["Experiment"] == experiment
-            if self.edge_correction:
-                raise NotImplementedError("Edge correction not implemented yet")
+
             for measurement in self.data["Measurement"][experiment_filter].unique():
                 measurement_filter = (self.data["Experiment"] == experiment) & (
                     self.data["Measurement"] == measurement
@@ -466,7 +550,22 @@ class autoXAS:
         measurements_to_average: Union[str, list[int], np.ndarray, range] = "all",
         n_periods: Union[None, int] = None,
         period: Union[None, int] = None,
-    ):
+    ) -> None:
+        """
+        Load data, apply corrections, and normalize data.
+
+        Args:
+            average (Union[bool, str], optional): Whether to average data in a standard or periodic manner. Defaults to False.
+            measurements_to_average (Union[str, list[int], np.ndarray, range], optional): Measurements to average. Defaults to "all".
+            n_periods (Union[None, int], optional): Number of periods to group measurements in for averaging. Will determine the number of measurements per period automatically. Defaults to None.
+            period (Union[None, int], optional): Number of measurements to group for averaging. Will determine the number of periods automatically. Defaults to None.
+
+        Raises:
+            ValueError: Invalid average. Must be "standard" or "periodic".
+
+        Returns:
+            None: Function does not return anything.
+        """
         self._read_data()
         self.experiments = list(self.data["Experiment"].unique())
         self.metals = list(self.data["Metal"].unique())
@@ -484,16 +583,47 @@ class autoXAS:
     def _linear_combination(
         self, weights: Parameters, components: list[np.array]
     ) -> np.array:
+        """
+        Calculate the linear combination of components using the given weights.
+
+        Args:
+            weights (Parameters): Weights for each component.
+            components (list[np.array]): List of components to combine.
+
+        Returns:
+            np.array: Linear combination of components.
+        """
         weights = np.array(list(weights.valuesdict().values()))
         components = np.array(components)
         return np.dot(weights, components)
 
     def _residual(self, target: np.array, combination: np.array) -> np.array:
+        """
+        Calculate the residual between the target and the linear combination.
+
+        Args:
+            target (np.array): Target data.
+            combination (np.array): Linear combination of components.
+
+        Returns:
+            np.array: Residual between target and linear combination.
+        """
         return target - combination
 
     def _fit_function(
         self, weights: Parameters, components: list[np.array], target: np.array
     ) -> np.array:
+        """
+        Fit function for the linear combination of components.
+
+        Args:
+            weights (Parameters): Weights for each component.
+            components (list[np.array]): List of components to combine.
+            target (np.array): Target data.
+
+        Returns:
+            np.array: Residual between target and linear combination.
+        """
         combination = self._linear_combination(weights, components)
         return self._residual(target, combination)
 
@@ -504,7 +634,24 @@ class autoXAS:
         use_standards: bool = False,
         components: Union[list[int], list[str], None] = [0, -1],
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
-    ):
+    ) -> None:
+        """
+        Perform Linear Combination Analysis (LCA) on the data.
+
+        Args:
+            use_standards (bool, optional): Whether to use standards for LCA. Defaults to False.
+            components (Union[list[int], list[str], None], optional): Components to use for LCA. Defaults to [0, -1].
+            fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+
+        Raises:
+            ValueError: No standards loaded.
+            ValueError: Number of fit ranges must match number of metals.
+            NotImplementedError: LCA with standards not implemented yet.
+            ValueError: At least 2 components are required to perform LCA.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if use_standards and not self.standards:
             raise ValueError("No standards loaded")
 
@@ -643,16 +790,39 @@ class autoXAS:
         n_components: Union[None, str, float, int, list] = None,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
         seed: Union[None, int] = None,
-    ):
+    ) -> None:
+        """
+        Perform Principal Component Analysis (PCA) on the data.
+
+        Args:
+            n_components (Union[None, str, float, int, list], optional): Number of components to keep or fraction of variance to be explained by components. Defaults to None.
+            fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            seed (Union[None, int], optional): Random seed for reproducibility. Defaults to None.
+
+        Raises:
+            ValueError: Length of list must match number of experiments.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if isinstance(n_components, list):
             if len(n_components) != len(self.experiments):
                 raise ValueError("Length of list must match number of experiments")
         else:
             n_components = [n_components] * len(self.experiments)
 
+        if isinstance(fit_range, list):
+            if len(fit_range) != len(self.metals):
+                raise ValueError("Number of fit ranges must match number of metals")
+        elif isinstance(fit_range, tuple):
+            fit_range = [fit_range] * len(self.metals)
+        else:
+            fit_range = [(0, np.inf)] * len(self.metals)
+
         experiment_list = []
         metal_list = []
         measurement_list = []
+        fit_range_list = []
         n_components_list = []
         pca_mean_list = []
         explained_variance_list = []
@@ -664,15 +834,21 @@ class autoXAS:
         component_number_list = []
         weights_list = []
 
-        for experiment, n_components in zip(self.experiments, n_components):
-            if fit_range:
-                raise NotImplementedError("Fit range not implemented yet")
+        for i, (experiment, n_components) in enumerate(
+            zip(self.experiments, n_components)
+        ):
+
+            fit_range_filter = (self.data["Energy"] >= fit_range[i][0]) & (
+                self.data["Energy"] <= fit_range[i][1]
+            )
 
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
             data = (
-                self.data["mu_norm"][self.data["Experiment"] == experiment]
+                self.data["mu_norm"][
+                    (self.data["Experiment"] == experiment) & fit_range_filter
+                ]
                 .to_numpy()
                 .reshape(len(measurements), -1)
             )
@@ -682,7 +858,7 @@ class autoXAS:
             pca_weights = pca.transform(data)
 
             # Store PCA results
-            for i, component in enumerate(pca.components_):
+            for j, component in enumerate(pca.components_):
                 for measurement in measurements:
                     experiment_list.append(experiment)
                     metal_list.append(
@@ -691,30 +867,32 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    fit_range_list.append(fit_range[i])
                     n_components_list.append(pca.n_components_)
                     pca_mean_list.append(pca.mean_)
-                    explained_variance_list.append(pca.explained_variance_[i])
+                    explained_variance_list.append(pca.explained_variance_[j])
                     explained_variance_ratio_list.append(
-                        pca.explained_variance_ratio_[i]
+                        pca.explained_variance_ratio_[j]
                     )
                     cumulative_explained_variance_list.append(
-                        pca.explained_variance_ratio_[: i + 1].sum()
+                        pca.explained_variance_ratio_[: j + 1].sum()
                     )
                     energy_list.append(
                         self.data["Energy"][
-                            self.data["Experiment"] == experiment
+                            (self.data["Experiment"] == experiment) & fit_range_filter
                         ].to_numpy()
                     )
                     component_list.append(component)
-                    component_names_list.append(f"PC {i+1}")
-                    component_number_list.append(i + 1)
-                    weights_list.append(pca_weights[measurement - 1, i])
+                    component_names_list.append(f"PC {j+1}")
+                    component_number_list.append(j + 1)
+                    weights_list.append(pca_weights[measurement - 1, j])
 
         self.PCA_result = pd.DataFrame(
             {
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "PCA Mean": pca_mean_list,
                 "Explained Variance": explained_variance_list,
@@ -735,7 +913,22 @@ class autoXAS:
         change_cutoff: float = 0.25,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
         seed: Union[None, int] = None,
-    ):
+    ) -> None:
+        """
+        Perform Non-negative Matrix Factorization (NMF) on the data.
+
+        Args:
+            n_components (Union[None, str, float, int, list], optional): Number of components to keep. Defaults to None.
+            change_cutoff (float, optional): Minimum change in reconstruction error to determine number of components. Defaults to 0.25.
+            fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            seed (Union[None, int], optional): Random seed for reproducibility. Defaults to None.
+
+        Raises:
+            ValueError: Length of list must match number of experiments.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if isinstance(n_components, list):
             if len(n_components) != len(self.experiments):
                 raise ValueError("Length of list must match number of experiments")
@@ -746,9 +939,18 @@ class autoXAS:
         else:
             n_components = [n_components] * len(self.experiments)
 
+        if isinstance(fit_range, list):
+            if len(fit_range) != len(self.metals):
+                raise ValueError("Number of fit ranges must match number of metals")
+        elif isinstance(fit_range, tuple):
+            fit_range = [fit_range] * len(self.metals)
+        else:
+            fit_range = [(0, np.inf)] * len(self.metals)
+
         experiment_list = []
         metal_list = []
         measurement_list = []
+        fit_range_list = []
         n_components_list = []
         energy_list = []
         component_list = []
@@ -756,15 +958,21 @@ class autoXAS:
         component_number_list = []
         weights_list = []
 
-        for experiment, n_components in zip(self.experiments, n_components):
-            if fit_range:
-                raise NotImplementedError("Fit range not implemented yet")
+        for i, (experiment, n_components) in enumerate(
+            zip(self.experiments, n_components)
+        ):
+
+            fit_range_filter = (self.data["Energy"] >= fit_range[i][0]) & (
+                self.data["Energy"] <= fit_range[i][1]
+            )
 
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
             data = (
-                self.data["mu_norm"][self.data["Experiment"] == experiment]
+                self.data["mu_norm"][
+                    (self.data["Experiment"] == experiment) & fit_range_filter
+                ]
                 .to_numpy()
                 .reshape(len(measurements), -1)
             )
@@ -776,7 +984,7 @@ class autoXAS:
             nmf_weights = nmf.transform(data)
 
             # Store NMF results
-            for i, component in enumerate(nmf.components_):
+            for j, component in enumerate(nmf.components_):
                 for measurement in measurements:
                     experiment_list.append(experiment)
                     metal_list.append(
@@ -785,22 +993,24 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    fit_range_list.append(fit_range[i])
                     n_components_list.append(nmf.n_components_)
                     energy_list.append(
                         self.data["Energy"][
-                            self.data["Experiment"] == experiment
+                            (self.data["Experiment"] == experiment) & fit_range_filter
                         ].to_numpy()
                     )
                     component_list.append(component)
-                    component_names_list.append(f"Component {i+1}")
-                    component_number_list.append(i + 1)
-                    weights_list.append(nmf_weights[measurement - 1, i])
+                    component_names_list.append(f"Component {j+1}")
+                    component_number_list.append(j + 1)
+                    weights_list.append(nmf_weights[measurement - 1, j])
 
         self.NMF_result = pd.DataFrame(
             {
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "Energy": energy_list,
                 "Component": component_list,
@@ -816,21 +1026,44 @@ class autoXAS:
         self,
         change_cutoff: int,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
-    ):
+    ) -> list[int]:
+        """
+        Determine the number of components to use for Non-negative Matrix Factorization (NMF).
+
+        Args:
+            change_cutoff (int): Minimum change in reconstruction error to determine number of components.
+            fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+
+        Returns:
+            list[int]: Number of components to use for NMF.
+        """
+
+        if isinstance(fit_range, list):
+            if len(fit_range) != len(self.metals):
+                raise ValueError("Number of fit ranges must match number of metals")
+        elif isinstance(fit_range, tuple):
+            fit_range = [fit_range] * len(self.metals)
+        else:
+            fit_range = [(0, np.inf)] * len(self.metals)
 
         experiment_list = []
+        metal_list = []
         n_components_list = []
         reconstruction_error_list = []
 
-        for experiment in self.experiments:
-            if fit_range:
-                raise NotImplementedError("Fit range not implemented yet")
+        for i, experiment in enumerate(self.experiments):
+
+            fit_range_filter = (self.data["Energy"] >= fit_range[i][0]) & (
+                self.data["Energy"] <= fit_range[i][1]
+            )
 
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
             data = np.clip(
-                self.data["mu_norm"][self.data["Experiment"] == experiment]
+                self.data["mu_norm"][
+                    (self.data["Experiment"] == experiment) & fit_range_filter
+                ]
                 .to_numpy()
                 .reshape(len(measurements), -1),
                 a_min=0,
@@ -843,34 +1076,36 @@ class autoXAS:
 
                 # Log reconstruction error
                 experiment_list.append(experiment)
+                metal_list.append(
+                    self.data["Metal"][self.data["Experiment"] == experiment].values[0]
+                )
                 n_components_list.append(n_components + 1)
                 reconstruction_error_list.append(nmf.reconstruction_err_)
 
-        NMF_component_results = pd.DataFrame(
+        self.NMF_component_results = pd.DataFrame(
             {
                 "Experiment": experiment_list,
+                "Metal": metal_list,
                 "n_components": n_components_list,
                 "Reconstruction Error": reconstruction_error_list,
             }
         )
 
-        NMF_component_results["Absolute Change"] = (
-            NMF_component_results.groupby("Experiment")["Reconstruction Error"]
-            .diff()
-            .abs()
-        )
-
         nmf_k = []
+        error_change_list = []
         for experiment in self.experiments:
-            _nmf = NMF_component_results[
-                NMF_component_results["Experiment"] == experiment
+            _nmf = self.NMF_component_results[
+                self.NMF_component_results["Experiment"] == experiment
             ]
-            _derivative = np.absolute(
+            error_change = np.absolute(
                 np.gradient(_nmf["Reconstruction Error"], _nmf["n_components"])
             )
-            k = _nmf["n_components"][_derivative > np.abs(change_cutoff)].max()
+            error_change_list.extend(error_change)
+            k = _nmf["n_components"][error_change > np.abs(change_cutoff)].max()
             nmf_k.append(k)
 
+        self.NMF_component_results["Error Change"] = error_change_list
+        
         return nmf_k
 
     # Data export functions
@@ -1383,7 +1618,9 @@ class autoXAS:
         data_filter = (self.LCA_result["Experiment"] == experiment) & (
             self.LCA_result["Measurement"] == measurement
         )
-
+        
+        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
+        
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1391,6 +1628,7 @@ class autoXAS:
             hovermode = "x unified"
 
             # Plot reference measurement
+            reference_data = self.data["mu_norm"][reference_data_filter].to_numpy()
             reference = self.LCA_result["Component"][
                 (
                     self.LCA_result["Component Name"]
@@ -1401,14 +1639,8 @@ class autoXAS:
 
             fig = go.Figure(
                 go.Scatter(
-                    x=self.LCA_result["Energy"][
-                        (
-                            self.LCA_result["Component Name"]
-                            == f"(Ref) Measurement {measurement}"
-                        )
-                        & data_filter
-                    ].values[0],
-                    y=reference,
+                    x=self.data["Energy"][reference_data_filter].to_numpy(),
+                    y=reference_data,
                     name="Data",
                     mode="lines",
                     line=dict(
@@ -1701,6 +1933,11 @@ class autoXAS:
             self.PCA_result["Measurement"] == measurement
         )
 
+        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
+        
+        fit_range = self.PCA_result["Fit Range"][data_filter].values[0]
+        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (self.data["Energy"] <= fit_range[1])
+        
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1708,17 +1945,13 @@ class autoXAS:
             hovermode = "x unified"
 
             # Plot reference measurement
-            reference = self.data["mu_norm"][
-                (self.data["Experiment"] == experiment)
-                & (self.data["Measurement"] == measurement)
-            ].to_numpy()
+            reference_data = self.data["mu_norm"][reference_data_filter].to_numpy()
+            reference = self.data["mu_norm"][reference_data_filter & fit_range_filter].to_numpy()
 
             fig = go.Figure(
                 go.Scatter(
-                    x=self.PCA_result["Energy"][
-                        (self.PCA_result["Component Name"] == f"PC 1") & data_filter
-                    ].values[0],
-                    y=reference,
+                    x=self.data["Energy"][reference_data_filter].to_numpy(),
+                    y=reference_data,
                     name="Data",
                     mode="lines",
                     line=dict(
@@ -1726,7 +1959,7 @@ class autoXAS:
                     ),
                 )
             )
-
+            
             # Plot PCA mean
             pca_mean = self.PCA_result["PCA Mean"][data_filter].values[0]
 
@@ -2218,7 +2451,12 @@ class autoXAS:
         data_filter = (self.NMF_result["Experiment"] == experiment) & (
             self.NMF_result["Measurement"] == measurement
         )
-
+        
+        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
+        
+        fit_range = self.NMF_result["Fit Range"][data_filter].values[0]
+        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (self.data["Energy"] <= fit_range[1])
+        
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2226,18 +2464,13 @@ class autoXAS:
             hovermode = "x unified"
 
             # Plot reference measurement
-            reference = self.data["mu_norm"][
-                (self.data["Experiment"] == experiment)
-                & (self.data["Measurement"] == measurement)
-            ].to_numpy()
+            reference_data = self.data["mu_norm"][reference_data_filter].to_numpy()
+            reference = self.data["mu_norm"][reference_data_filter & fit_range_filter].to_numpy()
 
             fig = go.Figure(
                 go.Scatter(
-                    x=self.NMF_result["Energy"][
-                        (self.NMF_result["Component Name"] == f"Component 1")
-                        & data_filter
-                    ].values[0],
-                    y=reference,
+                    x=self.data["Energy"][reference_data_filter].to_numpy(),
+                    y=reference_data,
                     name="Data",
                     mode="lines",
                     line=dict(
@@ -2437,3 +2670,73 @@ class autoXAS:
             raise NotImplementedError("Matplotlib plot not implemented yet")
 
         return None
+
+    def plot_NMF_error_change(self, change_cutoff: float=0.25, save: bool = False, filename: str = "NMF_error_change", format: str = ".png", directory: Union[None, str] = None, show: bool = True, show_title: bool = True):
+            if save and directory is None:
+                directory = self.save_directory
+
+            if self.interactive:
+                # Formatting for hover text
+                x_formatting = ".0f"
+                hovertemplate = "%{y:.2f}"
+                hovermode = "x unified"
+
+                # Plot the measurements of the selected experiment/edge
+                fig = px.line(
+                    data_frame=self.NMF_component_results,
+                    x="n_components",
+                    y="Error Change",
+                    color="Metal",
+                    color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
+                )
+
+                fig.add_hline(
+                    y=change_cutoff,
+                    line_color="black",
+                    line_width=2,
+                    line_dash="dash",
+                    annotation_text=f"<b>{change_cutoff:.2f}</b>",
+                    annotation_position="bottom right",
+                    annotation_font=dict(
+                        color="black",
+                        size=12,
+                    ),
+                )
+                
+                # Change line formatting
+                fig.update_traces(
+                    line=dict(
+                        width=2,
+                    ),
+                    xhoverformat=x_formatting,
+                    hovertemplate=hovertemplate,
+                )
+
+                # Specify title text
+                if show_title:
+                    title_text = f"<b>NMF Error Change</b>"
+                else:
+                    title_text = ""
+
+                # Specify text and formatting of axis labels
+                fig.update_layout(
+                    title=title_text,
+                    title_x=0.5,
+                    xaxis_title="<b>Number of NMF components</b>",
+                    yaxis_title="<b>\u0394 Error</b>",
+                    font=dict(
+                        size=14,
+                    ),
+                    hovermode=hovermode,
+                )
+
+                if save:
+                    fig.write_image(directory + "figures/" + filename + format)
+
+                if show:
+                    fig.show()
+
+            else:
+                raise NotImplementedError("Matplotlib plot not implemented yet")
+
+            return None
