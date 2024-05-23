@@ -512,7 +512,7 @@ def LCA_internal(
                                 param.stderr = 0.
                             if name == 'precursor_weight' and (param.value >= 0.99 or param.stderr > 0.5):
                                 list_stderrors_corrected.append(np.mean(list_stderrors_corrected[-2:]))
-                            elif name == 'intermediate_weight' and (param.value <= 0.01 and param.stderr > 1.):
+                            elif name == 'intermediate_weight' and (param.value <= 0.01 and param.stderr > 1.)
                                 list_stderrors_corrected.append(np.mean(list_stderrors_corrected[-1]))
                             else:
                                 list_stderrors_corrected.append(param.stderr)
