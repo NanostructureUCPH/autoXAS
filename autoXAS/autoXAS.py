@@ -88,7 +88,9 @@ class autoXAS:
         self.data_type = ".dat"
         self.data = None
         self.raw_data = None
+        self.standards_directory = None
         self.standards = None
+        self.raw_standards = None
         self.experiments = None
         self.save_directory = "./"
         self.energy_column = None
@@ -105,9 +107,20 @@ class autoXAS:
         if metals and edges:
             self._calculate_edge_shift(metals, edges)
 
-    def save_config(self, config_name: str, save_directory: str = "./"):
+    def save_config(self, config_name: str, save_directory: str = "./") -> None:
+        """
+        Save configuration file.
+
+        Args:
+            config_name (str): Name of the configuration file.
+            save_directory (str, optional): Directory where the configuration file will be saved. Defaults to "./".
+
+        Returns:
+            None: Function does not return anything.
+        """
         config = dict(
             data_directory=self.data_directory,
+            standards_directory=self.standards_directory,
             data_type=self.data_type,
             energy_column=self.energy_column,
             I0_columns=self.I0_columns,
@@ -139,6 +152,7 @@ class autoXAS:
         with open(directory + config_name, "r") as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
         self.data_directory = config["data_directory"]
+        self.standards_directory = config["standards_directory"]
         self.data_type = config["data_type"]
         self.energy_column = config["energy_column"]
         self.I0_columns = config["I0_columns"]
@@ -152,7 +166,7 @@ class autoXAS:
         self.save_directory = config["save_directory"]
         return None
 
-    def _read_data(self) -> None:
+    def _read_data(self, standards: bool = False) -> None:
         """
         Read data files and store in DataFrame.
 
@@ -163,11 +177,18 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        if self.data_directory is None:
-            raise ValueError("No data directory specified")
+        if standards:
+            if self.standards_directory is None:
+                raise ValueError("No standards directory specified")
+        else:
+            if self.data_directory is None:
+                raise ValueError("No data directory specified")
 
         if self.data_type == ".dat":
-            data_files = list(Path(self.data_directory).rglob("*.dat"))
+            if standards:
+                data_files = list(Path(self.standards_directory).rglob("*.dat"))
+            else:
+                data_files = list(Path(self.data_directory).rglob("*.dat"))
             for file in tqdm(data_files, desc="Reading data files", leave=False):
                 rows_to_skip = 0
                 last_line = ""
@@ -244,40 +265,39 @@ class autoXAS:
                 for energy_step in data["Energy"].diff().round(2):
                     if energy_step < 0:
                         measurement_number += 1
-                    measurement_number_values.append(measurement_number)
+                    measurement_number_values.append(int(measurement_number))
                 data["Measurement"] = measurement_number_values
 
-                if self.raw_data is None:
-                    self.raw_data = raw_data
-                else:
-                    self.raw_data = pd.concat([self.raw_data, raw_data])
+                # Specify data types in specific columns
+                data = data.astype(
+                    {"Experiment": str, "Metal": str, "Measurement": int}
+                )
 
-                if self.data is None:
-                    self.data = data
+                if standards:
+                    if self.raw_standards is None:
+                        self.raw_standards = raw_data
+                    else:
+                        self.raw_standards = pd.concat([self.raw_standards, raw_data])
+
+                    if self.standards is None:
+                        self.standards = data
+                    else:
+                        self.standards = pd.concat([self.standards, data]).reset_index(
+                            drop=True
+                        )
                 else:
-                    self.data = pd.concat([self.data, data]).reset_index(drop=True)
+                    if self.raw_data is None:
+                        self.raw_data = raw_data
+                    else:
+                        self.raw_data = pd.concat([self.raw_data, raw_data])
+
+                    if self.data is None:
+                        self.data = data
+                    else:
+                        self.data = pd.concat([self.data, data]).reset_index(drop=True)
 
         elif self.data_type == ".h5":
             raise NotImplementedError("HDF5 file reading not implemented yet")
-        return None
-
-    def load_standards(
-        self, standards_directory: str, standards_type: str = ".dat"
-    ) -> None:
-        """
-        Load experimental standards and store in DataFrame.
-
-        Args:
-            standards_directory (str): Directory where the standards are located.
-            standards_type (str, optional): Type of the data files. Defaults to ".dat".
-
-        Raises:
-            NotImplementedError: Standard loading not implemented yet.
-
-        Returns:
-            None: Function does not return anything.
-        """
-        raise NotImplementedError("Standard loading not implemented yet")
         return None
 
     def _calculate_edge_shift(self, metals: list[str], edges: list[str]) -> None:
@@ -578,6 +598,25 @@ class autoXAS:
             else:
                 raise ValueError('Invalid average. Must be "standard" or "periodic".')
         self._normalize_data()
+        return None
+
+    def load_standards(
+        self, standards_directory: str, standards_type: str = ".dat"
+    ) -> None:
+        """
+        Load experimental standards and store in DataFrame.
+
+        Args:
+            standards_directory (str): Directory where the standards are located.
+            standards_type (str, optional): Type of the data files. Defaults to ".dat".
+
+        Raises:
+            NotImplementedError: Standard loading not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+        raise NotImplementedError("Standard loading not implemented yet")
         return None
 
     def _linear_combination(
@@ -1105,7 +1144,7 @@ class autoXAS:
             nmf_k.append(k)
 
         self.NMF_component_results["Error Change"] = error_change_list
-        
+
         return nmf_k
 
     # Data export functions
@@ -1618,9 +1657,11 @@ class autoXAS:
         data_filter = (self.LCA_result["Experiment"] == experiment) & (
             self.LCA_result["Measurement"] == measurement
         )
-        
-        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
-        
+
+        reference_data_filter = (self.data["Experiment"] == experiment) & (
+            self.data["Measurement"] == measurement
+        )
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1933,11 +1974,15 @@ class autoXAS:
             self.PCA_result["Measurement"] == measurement
         )
 
-        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
-        
+        reference_data_filter = (self.data["Experiment"] == experiment) & (
+            self.data["Measurement"] == measurement
+        )
+
         fit_range = self.PCA_result["Fit Range"][data_filter].values[0]
-        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (self.data["Energy"] <= fit_range[1])
-        
+        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (
+            self.data["Energy"] <= fit_range[1]
+        )
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1946,7 +1991,9 @@ class autoXAS:
 
             # Plot reference measurement
             reference_data = self.data["mu_norm"][reference_data_filter].to_numpy()
-            reference = self.data["mu_norm"][reference_data_filter & fit_range_filter].to_numpy()
+            reference = self.data["mu_norm"][
+                reference_data_filter & fit_range_filter
+            ].to_numpy()
 
             fig = go.Figure(
                 go.Scatter(
@@ -1959,7 +2006,7 @@ class autoXAS:
                     ),
                 )
             )
-            
+
             # Plot PCA mean
             pca_mean = self.PCA_result["PCA Mean"][data_filter].values[0]
 
@@ -2451,12 +2498,16 @@ class autoXAS:
         data_filter = (self.NMF_result["Experiment"] == experiment) & (
             self.NMF_result["Measurement"] == measurement
         )
-        
-        reference_data_filter = (self.data["Experiment"] == experiment) & (self.data["Measurement"] == measurement)
-        
+
+        reference_data_filter = (self.data["Experiment"] == experiment) & (
+            self.data["Measurement"] == measurement
+        )
+
         fit_range = self.NMF_result["Fit Range"][data_filter].values[0]
-        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (self.data["Energy"] <= fit_range[1])
-        
+        fit_range_filter = (self.data["Energy"] >= fit_range[0]) & (
+            self.data["Energy"] <= fit_range[1]
+        )
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2465,7 +2516,9 @@ class autoXAS:
 
             # Plot reference measurement
             reference_data = self.data["mu_norm"][reference_data_filter].to_numpy()
-            reference = self.data["mu_norm"][reference_data_filter & fit_range_filter].to_numpy()
+            reference = self.data["mu_norm"][
+                reference_data_filter & fit_range_filter
+            ].to_numpy()
 
             fig = go.Figure(
                 go.Scatter(
@@ -2671,72 +2724,81 @@ class autoXAS:
 
         return None
 
-    def plot_NMF_error_change(self, change_cutoff: float=0.25, save: bool = False, filename: str = "NMF_error_change", format: str = ".png", directory: Union[None, str] = None, show: bool = True, show_title: bool = True):
-            if save and directory is None:
-                directory = self.save_directory
+    def plot_NMF_error_change(
+        self,
+        change_cutoff: float = 0.25,
+        save: bool = False,
+        filename: str = "NMF_error_change",
+        format: str = ".png",
+        directory: Union[None, str] = None,
+        show: bool = True,
+        show_title: bool = True,
+    ):
+        if save and directory is None:
+            directory = self.save_directory
 
-            if self.interactive:
-                # Formatting for hover text
-                x_formatting = ".0f"
-                hovertemplate = "%{y:.2f}"
-                hovermode = "x unified"
+        if self.interactive:
+            # Formatting for hover text
+            x_formatting = ".0f"
+            hovertemplate = "%{y:.2f}"
+            hovermode = "x unified"
 
-                # Plot the measurements of the selected experiment/edge
-                fig = px.line(
-                    data_frame=self.NMF_component_results,
-                    x="n_components",
-                    y="Error Change",
-                    color="Metal",
-                    color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
-                )
+            # Plot the measurements of the selected experiment/edge
+            fig = px.line(
+                data_frame=self.NMF_component_results,
+                x="n_components",
+                y="Error Change",
+                color="Metal",
+                color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
+            )
 
-                fig.add_hline(
-                    y=change_cutoff,
-                    line_color="black",
-                    line_width=2,
-                    line_dash="dash",
-                    annotation_text=f"<b>{change_cutoff:.2f}</b>",
-                    annotation_position="bottom right",
-                    annotation_font=dict(
-                        color="black",
-                        size=12,
-                    ),
-                )
-                
-                # Change line formatting
-                fig.update_traces(
-                    line=dict(
-                        width=2,
-                    ),
-                    xhoverformat=x_formatting,
-                    hovertemplate=hovertemplate,
-                )
+            fig.add_hline(
+                y=change_cutoff,
+                line_color="black",
+                line_width=2,
+                line_dash="dash",
+                annotation_text=f"<b>{change_cutoff:.2f}</b>",
+                annotation_position="bottom right",
+                annotation_font=dict(
+                    color="black",
+                    size=12,
+                ),
+            )
 
-                # Specify title text
-                if show_title:
-                    title_text = f"<b>NMF Error Change</b>"
-                else:
-                    title_text = ""
+            # Change line formatting
+            fig.update_traces(
+                line=dict(
+                    width=2,
+                ),
+                xhoverformat=x_formatting,
+                hovertemplate=hovertemplate,
+            )
 
-                # Specify text and formatting of axis labels
-                fig.update_layout(
-                    title=title_text,
-                    title_x=0.5,
-                    xaxis_title="<b>Number of NMF components</b>",
-                    yaxis_title="<b>\u0394 Error</b>",
-                    font=dict(
-                        size=14,
-                    ),
-                    hovermode=hovermode,
-                )
-
-                if save:
-                    fig.write_image(directory + "figures/" + filename + format)
-
-                if show:
-                    fig.show()
-
+            # Specify title text
+            if show_title:
+                title_text = f"<b>NMF Error Change</b>"
             else:
-                raise NotImplementedError("Matplotlib plot not implemented yet")
+                title_text = ""
 
-            return None
+            # Specify text and formatting of axis labels
+            fig.update_layout(
+                title=title_text,
+                title_x=0.5,
+                xaxis_title="<b>Number of NMF components</b>",
+                yaxis_title="<b>\u0394 Error</b>",
+                font=dict(
+                    size=14,
+                ),
+                hovermode=hovermode,
+            )
+
+            if save:
+                fig.write_image(directory + "figures/" + filename + format)
+
+            if show:
+                fig.show()
+
+        else:
+            raise NotImplementedError("Matplotlib plot not implemented yet")
+
+        return None
