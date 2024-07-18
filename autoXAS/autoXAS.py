@@ -176,6 +176,9 @@ class autoXAS:
         """
         Read data files and store in DataFrame.
 
+        Args:
+            standards (bool, optional): Whether to read standards. Defaults to False.
+
         Raises:
             ValueError: No data directory specified.
             NotImplementedError: HDF5 file reading not implemented yet.
@@ -333,106 +336,124 @@ class autoXAS:
             )
         return None
 
-    def _energy_correction(self) -> None:
+    def _energy_correction(self, standards: bool = False) -> None:
         """
         Correct energy range and align measured energy points for each experiment.
+
+        Args:
+            standards (bool, optional): Whether to correct standards. Defaults to False.
 
         Returns:
             None: Function does not return anything.
         """
+        dataframe = self.standards if standards else self.data
+
         for experiment in tqdm(self.experiments, desc="Energy correction", leave=False):
-            experiment_filter = self.data["Experiment"] == experiment
-            n_measurements = self.data["Measurement"][experiment_filter].max()
+            experiment_filter = dataframe["Experiment"] == experiment
+            n_measurements = dataframe["Measurement"][experiment_filter].max()
             # Correct for small variations in measured energy points
             energy = (
-                self.data["Energy"][experiment_filter]
+                dataframe["Energy"][experiment_filter]
                 .to_numpy()
                 .reshape(n_measurements, -1)
             )
             energy_correction = energy.mean(axis=0)
             # Correct for edge shift
             energy_correction += self.edge_correction_energies.get(
-                self.data["Metal"][experiment_filter].values[0], 0.0
+                dataframe["Metal"][experiment_filter].values[0], 0.0
             )
             # Estimate mu at corrected energy points using linear interpolation
             for measurement in range(1, n_measurements + 1):
-                measurement_filter = (self.data["Experiment"] == experiment) & (
-                    self.data["Measurement"] == measurement
+                measurement_filter = (dataframe["Experiment"] == experiment) & (
+                    dataframe["Measurement"] == measurement
                 )
                 i0_interpolated = np.interp(
                     energy_correction,
-                    self.data["Energy"][measurement_filter],
-                    self.data["I0"][measurement_filter],
+                    dataframe["Energy"][measurement_filter],
+                    dataframe["I0"][measurement_filter],
                 )
                 i1_interpolated = np.interp(
                     energy_correction,
-                    self.data["Energy"][measurement_filter],
-                    self.data["I1"][measurement_filter],
+                    dataframe["Energy"][measurement_filter],
+                    dataframe["I1"][measurement_filter],
                 )
                 mu_interpolated = np.interp(
                     energy_correction,
-                    self.data["Energy"][measurement_filter],
-                    self.data["mu"][measurement_filter],
+                    dataframe["Energy"][measurement_filter],
+                    dataframe["mu"][measurement_filter],
                 )
 
                 # Apply correction
-                self.data["Energy"][measurement_filter] = energy_correction
-                self.data["I0"][measurement_filter] = i0_interpolated
-                self.data["I1"][measurement_filter] = i1_interpolated
-                self.data["mu"][measurement_filter] = mu_interpolated
+                dataframe["Energy"][measurement_filter] = energy_correction
+                dataframe["I0"][measurement_filter] = i0_interpolated
+                dataframe["I1"][measurement_filter] = i1_interpolated
+                dataframe["mu"][measurement_filter] = mu_interpolated
+
+            if standards:
+                self.standards = dataframe
+            else:
+                self.data = dataframe
         return None
 
     def _average_data(
-        self, measurements_to_average: Union[str, list[int], np.ndarray, range] = "all"
+        self,
+        measurements_to_average: Union[str, list[int], np.ndarray, range] = "all",
+        standards: bool = False,
     ) -> None:
         """
         Average data points for each experiment.
 
         Args:
             measurements_to_average (Union[str, list[int], np.ndarray, range], optional): Measurements to average. Defaults to "all".
+            standards (bool, optional): Whether to average standards. Defaults to False.
 
         Returns:
             None: Function does not return anything.
         """
+        dataframe = self.standards if standards else self.data
+
         avg_measurements = []
         for experiment in tqdm(self.experiments, desc="Averaging data", leave=False):
             first = True
-            experiment_filter = self.data["Experiment"] == experiment
+            experiment_filter = dataframe["Experiment"] == experiment
 
             if measurements_to_average == "all":
-                measurements = self.data["Measurement"][experiment_filter].unique()
+                measurements = dataframe["Measurement"][experiment_filter].unique()
             else:
                 measurements = measurements_to_average
 
             for measurement in measurements:
-                measurement_filter = (self.data["Experiment"] == experiment) & (
-                    self.data["Measurement"] == measurement
+                measurement_filter = (dataframe["Experiment"] == experiment) & (
+                    dataframe["Measurement"] == measurement
                 )
 
                 if first:
-                    df_avg = self.data[measurement_filter].copy()
+                    df_avg = dataframe[measurement_filter].copy()
                     i0_avg = np.zeros_like(df_avg["I0"], dtype=np.float64)
                     i1_avg = np.zeros_like(df_avg["I1"], dtype=np.float64)
                     mu_avg = np.zeros_like(df_avg["mu"], dtype=np.float64)
 
                     first = False
 
-                i0_avg += self.data["I0"][measurement_filter].to_numpy()
-                i1_avg += self.data["I1"][measurement_filter].to_numpy()
-                mu_avg += self.data["mu"][measurement_filter].to_numpy()
+                i0_avg += dataframe["I0"][measurement_filter].to_numpy()
+                i1_avg += dataframe["I1"][measurement_filter].to_numpy()
+                mu_avg += dataframe["mu"][measurement_filter].to_numpy()
 
             n_measurements = len(measurements)
             df_avg["I0"] = i0_avg / n_measurements
             df_avg["I1"] = i1_avg / n_measurements
             df_avg["mu"] = mu_avg / n_measurements
-            df_avg["Temperature"] = self.data["Temperature"][measurement_filter].mean()
-            df_avg["Temperature (std)"] = self.data["Temperature"][
+            df_avg["Temperature"] = dataframe["Temperature"][measurement_filter].mean()
+            df_avg["Temperature (std)"] = dataframe["Temperature"][
                 measurement_filter
             ].std()
 
             avg_measurements.append(df_avg)
 
-        self.data = pd.concat(avg_measurements)
+        if standards:
+            self.standards = pd.concat(avg_measurements)
+        else:
+            self.data = pd.concat(avg_measurements)
         return None
 
     def _average_data_periodic(
@@ -515,11 +536,14 @@ class autoXAS:
         self.data = pd.concat(avg_measurements)
         return None
 
-    def _normalize_data(self) -> None:
+    def _normalize_data(self, standards: bool = False) -> None:
         """
         Normalize data by subtracting the pre-edge fit and dividing by the post-edge fit.
 
         Pre- and post-edge fits are done using the `larch.xafs.pre_edge` function.
+
+        Args:
+            standards (bool, optional): Whether to normalize standards. Defaults to False.
 
         Raises:
             ValueError: No data to normalize.
@@ -527,48 +551,59 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        if self.data is None:
-            raise ValueError("No data to normalize")
+        if standards:
+            if self.standards is None:
+                raise ValueError("No standards to normalize")
+            dataframe = self.standards
+        else:
+            if self.data is None:
+                raise ValueError("No data to normalize")
+            dataframe = self.data
 
-        self.data["mu_norm"] = 0
-        self.data["pre_edge"] = 0
-        self.data["post_edge"] = 0
+        dataframe["mu_norm"] = 0
+        dataframe["pre_edge"] = 0
+        dataframe["post_edge"] = 0
 
         for experiment in tqdm(self.experiments, desc="Normalizing data", leave=False):
-            experiment_filter = self.data["Experiment"] == experiment
+            experiment_filter = dataframe["Experiment"] == experiment
 
-            for measurement in self.data["Measurement"][experiment_filter].unique():
-                measurement_filter = (self.data["Experiment"] == experiment) & (
-                    self.data["Measurement"] == measurement
+            for measurement in dataframe["Measurement"][experiment_filter].unique():
+                measurement_filter = (dataframe["Experiment"] == experiment) & (
+                    dataframe["Measurement"] == measurement
                 )
                 dummy_group = Group(name="dummy")
 
-                self.data["mu_norm"][measurement_filter] = self.data["mu"][
+                dataframe["mu_norm"][measurement_filter] = dataframe["mu"][
                     measurement_filter
-                ] - np.amin(self.data["mu"][measurement_filter])
+                ] - np.amin(dataframe["mu"][measurement_filter])
 
                 try:
                     pre_edge(
-                        self.data["Energy"][measurement_filter],
-                        self.data["mu_norm"][measurement_filter],
+                        dataframe["Energy"][measurement_filter],
+                        dataframe["mu_norm"][measurement_filter],
                         group=dummy_group,
                         make_flat=False,
                     )
-                    self.data["pre_edge"][measurement_filter] = dummy_group.pre_edge
-                    self.data["post_edge"][measurement_filter] = dummy_group.post_edge
-                    self.data["mu_norm"][measurement_filter] -= dummy_group.pre_edge
+                    dataframe["pre_edge"][measurement_filter] = dummy_group.pre_edge
+                    dataframe["post_edge"][measurement_filter] = dummy_group.post_edge
+                    dataframe["mu_norm"][measurement_filter] -= dummy_group.pre_edge
                     pre_edge(
-                        self.data["Energy"][measurement_filter],
-                        self.data["mu_norm"][measurement_filter],
+                        dataframe["Energy"][measurement_filter],
+                        dataframe["mu_norm"][measurement_filter],
                         group=dummy_group,
                         make_flat=False,
                     )
-                    self.data["mu_norm"][measurement_filter] /= dummy_group.post_edge
+                    dataframe["mu_norm"][measurement_filter] /= dummy_group.post_edge
                 except:
-                    self.data.drop(self.data[measurement_filter].index, inplace=True)
+                    dataframe.drop(dataframe[measurement_filter].index, inplace=True)
                     print(
                         f"Error normalizing {experiment} measurement {measurement}. Measurement removed."
                     )
+
+        if standards:
+            self.standards = dataframe
+        else:
+            self.data = dataframe
         return None
 
     def load_data(
@@ -607,15 +642,9 @@ class autoXAS:
         self._normalize_data()
         return None
 
-    def load_standards(
-        self, standards_directory: str, standards_type: str = ".dat"
-    ) -> None:
+    def load_standards(self) -> None:
         """
         Load experimental standards and store in DataFrame.
-
-        Args:
-            standards_directory (str): Directory where the standards are located.
-            standards_type (str, optional): Type of the data files. Defaults to ".dat".
 
         Raises:
             NotImplementedError: Standard loading not implemented yet.
@@ -623,7 +652,12 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        raise NotImplementedError("Standard loading not implemented yet")
+        # raise NotImplementedError("Standard loading not implemented yet")
+
+        self._read_data(standards=True)
+        self._energy_correction(standards=True)
+        self._average_data(measurements_to_average="all", standards=True)
+
         return None
 
     def _linear_combination(
