@@ -1192,9 +1192,10 @@ class autoXAS:
 
     def to_csv(
         self,
-        filename: str,
+        data: str = "data",
+        filename: Union[None, str] = None,
         directory: Union[None, str] = None,
-        columns: Union[None, list[str]] = None,
+        columns: Union[str, list[str]] = None,
     ):
         """
         Export data to a CSV file.
@@ -1207,11 +1208,27 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
+
+        if data not in ["data", "standards", "LCA", "PCA", "NMF"]:
+            raise ValueError("Invalid data type")
+
         if directory is None:
             directory = self.save_directory
-        self.data.to_csv(
-            directory + "data/" + filename + ".csv", index=False, columns=columns
-        )
+
+        if data == "data":
+            dataframe = self.data
+        elif data == "standards":
+            dataframe = self.standards
+        elif data == "LCA":
+            dataframe = self.LCA_result
+        elif data == "PCA":
+            dataframe = self.PCA_result
+        elif data == "NMF":
+            dataframe = self.NMF_result
+
+        # TODO: Unravel nested columns before saving
+
+        dataframe.to_csv(directory + filename, index=False, columns=columns)
         return None
 
     def to_athena(
