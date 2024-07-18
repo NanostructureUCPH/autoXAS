@@ -1,8 +1,11 @@
 # %% Imports
 
+
+# Standard library imports
 from pathlib import Path
 from typing import Union
 
+# Package imports
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -17,6 +20,9 @@ from larch.xray import xray_edge
 from lmfit import Parameters, minimize
 from sklearn.decomposition import NMF, PCA
 from tqdm.auto import tqdm
+
+# %% Setup
+
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
