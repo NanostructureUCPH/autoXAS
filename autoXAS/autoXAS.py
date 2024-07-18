@@ -237,6 +237,7 @@ class autoXAS:
                     data["Temperature"] = raw_data[self.temperature_column]
                 else:
                     data["Temperature"] = 0  # Placeholder for temperature
+                data["Temperature (std)"] = 0  # Placeholder for temperature std
 
                 # Calculate I0
                 if isinstance(self.I0_columns, list):
@@ -1155,6 +1156,17 @@ class autoXAS:
         directory: Union[None, str] = None,
         columns: Union[None, list[str]] = None,
     ):
+        """
+        Export data to a CSV file.
+
+        Args:
+            filename (str): Name of the file to save.
+            directory (Union[None, str], optional): Directory to save the file. Defaults to None.
+            columns (Union[None, list[str]], optional): Columns to export. Defaults to None.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if directory is None:
             directory = self.save_directory
         self.data.to_csv(
@@ -1182,18 +1194,34 @@ class autoXAS:
         save: bool = False,
         filename: str = "data",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot the normalized data for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            standards (Union[None, list[str]], optional): Standards to plot. Defaults to None.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "data".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Standards not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         n_measurements = int(
             self.data["Measurement"][self.data["Experiment"] == experiment].max()
@@ -1248,7 +1276,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1287,7 +1315,7 @@ class autoXAS:
             # Enforce matplotlibs tight layout
             plt.tight_layout()
             if save:
-                plt.savefig(directory + "figures/" + filename + format)
+                plt.savefig(self.save_directory + "figures/" + filename + format)
 
             if show:
                 plt.show()
@@ -1298,12 +1326,25 @@ class autoXAS:
         save: bool = False,
         filename: str = "temperature_curve",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         show_title: bool = True,
     ):
-        if save and directory is None:
-            directory = self.save_directory
+        """
+        Plot the temperature curves for all experiments.
+
+        Args:
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "temperature_curve".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if self.interactive:
             # Formatting for hover text
@@ -1351,7 +1392,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1368,17 +1409,35 @@ class autoXAS:
         save: bool = False,
         filename: str = "waterfall",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         show_title: bool = True,
     ):
+        """
+        Plot a waterfall plot for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            y_axis (str, optional): Column to use as Y-axis in the plot. Defaults to "Measurement".
+            vmin (Union[None, float], optional): Minimum value for the color scale. Defaults to None.
+            vmax (Union[None, float], optional): Maximum value for the color scale. Defaults to None.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "waterfall".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         experiment_filter = self.data["Experiment"] == experiment
 
@@ -1434,7 +1493,7 @@ class autoXAS:
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1452,17 +1511,36 @@ class autoXAS:
         save: bool = False,
         filename: str = "change",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         show_title: bool = True,
     ):
+        """
+        Plot the change in normalized data for a given experiment
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            reference_measurement (int, optional): Measurement to use as reference. Defaults to 1.
+            y_axis (str, optional): Column to use as Y-axis in the plot. Defaults to "Measurement".
+            vmin (Union[None, float], optional): Minimum value for the color scale. Defaults to None.
+            vmax (Union[None, float], optional): Maximum value for the color scale. Defaults to None.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "change".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         experiment_filter = self.data["Experiment"] == experiment
         experiment_data = self.data[experiment_filter]
@@ -1542,7 +1620,7 @@ class autoXAS:
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1556,18 +1634,34 @@ class autoXAS:
         save: bool = False,
         filename: str = "LCA",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot the results of Linear Combination Analysis (LCA) for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "LCA".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         experiment_filter = self.LCA_result["Experiment"] == experiment
 
@@ -1624,7 +1718,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1641,18 +1735,35 @@ class autoXAS:
         save: bool = False,
         filename: str = "LCA_frame",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot a single frame of the Linear Combination Analysis (LCA) for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            measurement (int): Measurement to plot. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "LCA_frame".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         data_filter = (self.LCA_result["Experiment"] == experiment) & (
             self.LCA_result["Measurement"] == measurement
@@ -1794,7 +1905,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1805,17 +1916,32 @@ class autoXAS:
 
     def plot_LCA_comparison(
         self,
-        component: int = 2,
+        component: int = 1,
         save: bool = False,
         filename: str = "LCA_comparison",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
-        if save and directory is None:
-            directory = self.save_directory
+        """
+        Plot comparison of Linear Combination Analysis (LCA) components across experiments.
+
+        Args:
+            component (int): Components to compare. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "LCA_comparison".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if self.interactive:
             # Formatting for hover text
@@ -1867,7 +1993,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1882,18 +2008,34 @@ class autoXAS:
         save: bool = False,
         filename: str = "PCA",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot the results of Principal Component Analysis (PCA) for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "PCA".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         experiment_filter = self.PCA_result["Experiment"] == experiment
 
@@ -1941,7 +2083,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -1957,18 +2099,32 @@ class autoXAS:
         save: bool = False,
         filename: str = "PCA_frame",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot a single frame of the Principal Component Analysis (PCA) for a given experiment
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            measurement (int): Measurement to plot. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "PCA_frame".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         data_filter = (self.PCA_result["Experiment"] == experiment) & (
             self.PCA_result["Measurement"] == measurement
@@ -2121,7 +2277,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2135,13 +2291,29 @@ class autoXAS:
         save: bool = False,
         filename: str = "PCA_comparison",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
-        if save and directory is None:
-            directory = self.save_directory
+        """
+        Plot comparison of Principal Component Analysis (PCA) components across experiments.
+
+        Args:
+            component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "PCA_comparison".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Length of list must match number of experiments.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if isinstance(component, list):
             if len(component) != len(self.experiments):
@@ -2204,7 +2376,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2223,14 +2395,33 @@ class autoXAS:
         save: bool = False,
         filename: str = "PCA_explained_variance",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2%",
         show_title: bool = True,
     ):
+        """
+        Plot the explained variance of Principal Component Analysis (PCA) for all experiments.
 
-        if save and directory is None:
-            directory = self.save_directory
+        Args:
+            plot_type (str, optional): Type of plot to generate. Defaults to "cumulative".
+            variance_threshold (Union[None, float], optional): Threshold for the explained variance to plot. Defaults to None.
+            fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Range of energies to fit the PCA. Defaults to None.
+            seed (Union[None, int], optional): Random seed for PCA. Defaults to None.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "PCA_explained_variance".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2%".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid plot type.
+            NotImplementedError: Fit range not implemented yet.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if plot_type not in ["ratio", "cumulative"]:
             raise ValueError(
@@ -2247,7 +2438,9 @@ class autoXAS:
 
         for experiment in self.experiments:
             if fit_range:
-                raise NotImplementedError("Fit range not implemented yet")
+                raise NotImplementedError(
+                    "Fit range not implemented yet"
+                )  # TODO: Use fit_range implementation from PCA function here
 
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
@@ -2390,7 +2583,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2406,18 +2599,34 @@ class autoXAS:
         save: bool = False,
         filename: str = "NMF",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot the results of Non-negative Matrix Factorization (NMF) for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "NMF".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         experiment_filter = self.NMF_result["Experiment"] == experiment
 
@@ -2465,7 +2674,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2482,18 +2691,35 @@ class autoXAS:
         save: bool = False,
         filename: str = "NMF_frame",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
+        """
+        Plot a single frame of the Non-negative Matrix Factorization (NMF) for a given experiment.
+
+        Args:
+            experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            measurement (int): Measurement to plot. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "NMF_frame".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Invalid experiment name.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+
         if isinstance(experiment, int):
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
-
-        if save and directory is None:
-            directory = self.save_directory
 
         data_filter = (self.NMF_result["Experiment"] == experiment) & (
             self.NMF_result["Measurement"] == measurement
@@ -2629,7 +2855,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2645,13 +2871,29 @@ class autoXAS:
         save: bool = False,
         filename: str = "NMF_comparison",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
     ):
-        if save and directory is None:
-            directory = self.save_directory
+        """
+        Plot comparison of Non-negative Matrix Factorization (NMF) components across experiments.
+
+        Args:
+            component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "NMF_comparison".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            ValueError: Length of list must match number of experiments.
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if isinstance(component, list):
             if len(component) != len(self.experiments):
@@ -2714,7 +2956,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
@@ -2730,12 +2972,26 @@ class autoXAS:
         save: bool = False,
         filename: str = "NMF_error_change",
         format: str = ".png",
-        directory: Union[None, str] = None,
         show: bool = True,
         show_title: bool = True,
     ):
-        if save and directory is None:
-            directory = self.save_directory
+        """
+        Plot the change in error of Non-negative Matrix Factorization (NMF) as a function of number of components.
+
+        Args:
+            change_cutoff (float, optional): Error change cutoff to plot. Defaults to 0.25.
+            save (bool, optional): Whether to save the plot. Defaults to False.
+            filename (str, optional): Name of the file to save. Defaults to "NMF_error_change".
+            format (str, optional): Format of the file to save. Defaults to ".png".
+            show (bool, optional): Whether to show the plot. Defaults to True.
+            show_title (bool, optional): Whether to show the title. Defaults to True.
+
+        Raises:
+            NotImplementedError: Matplotlib plot not implemented yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
 
         if self.interactive:
             # Formatting for hover text
@@ -2793,7 +3049,7 @@ class autoXAS:
             )
 
             if save:
-                fig.write_image(directory + "figures/" + filename + format)
+                fig.write_image(self.save_directory + "figures/" + filename + format)
 
             if show:
                 fig.show()
