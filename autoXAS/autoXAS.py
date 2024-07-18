@@ -2416,7 +2416,6 @@ class autoXAS:
 
         Raises:
             ValueError: Invalid plot type.
-            NotImplementedError: Fit range not implemented yet.
             NotImplementedError: Matplotlib plot not implemented yet.
 
         Returns:
@@ -2428,6 +2427,14 @@ class autoXAS:
                 'Invalid plot type. Choose between "ratio" and "cumulative"'
             )
 
+        if isinstance(fit_range, list):
+            if len(fit_range) != len(self.metals):
+                raise ValueError("Number of fit ranges must match number of metals")
+        elif isinstance(fit_range, tuple):
+            fit_range = [fit_range] * len(self.metals)
+        else:
+            fit_range = [(0, np.inf)] * len(self.metals)
+
         experiment_list = []
         metal_list = []
         component_number_list = []
@@ -2436,17 +2443,19 @@ class autoXAS:
         explained_variance_ratio_list = []
         cumulative_explained_variance_list = []
 
-        for experiment in self.experiments:
-            if fit_range:
-                raise NotImplementedError(
-                    "Fit range not implemented yet"
-                )  # TODO: Use fit_range implementation from PCA function here
+        for i, experiment in enumerate(self.experiments):
+
+            fit_range_filter = (self.data["Energy"] >= fit_range[i][0]) & (
+                self.data["Energy"] <= fit_range[i][1]
+            )
 
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
             data = (
-                self.data["mu_norm"][self.data["Experiment"] == experiment]
+                self.data["mu_norm"][
+                    (self.data["Experiment"] == experiment) & fit_range_filter
+                ]
                 .to_numpy()
                 .reshape(len(measurements), -1)
             )
