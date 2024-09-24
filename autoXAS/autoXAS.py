@@ -269,10 +269,13 @@ class autoXAS:
                 elif self.xas_mode == "Transmission":
                     data["mu"] = np.log(data["I0"] / data["I1"])
 
+                # Remove data points with energy = 0
+                data = data[data["Energy"] != 0]
+
                 # Determine which measurement each data point belongs to
                 measurement_number = 1
                 measurement_number_values = []
-                for energy_step in data["Energy"].diff().round(2):
+                for energy_step in data["Energy"].diff().round(1):
                     if energy_step < 0:
                         measurement_number += 1
                     measurement_number_values.append(int(measurement_number))
