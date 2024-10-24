@@ -3,7 +3,7 @@ I0_columns:
 - mon_4
 I1_columns: xmap_roi00
 data_directory: ../Data/ESRF_SNBL/Averaging/
-standards_directory: None
+standards_directory: null
 data_type: .dat
 edge_correction: false
 energy_column: ZapEnergy

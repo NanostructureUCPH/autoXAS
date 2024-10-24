@@ -350,8 +350,9 @@ class autoXAS:
             None: Function does not return anything.
         """
         dataframe = self.standards if standards else self.data
+        experiments = self.standard_experiments if standards else self.experiments
 
-        for experiment in tqdm(self.experiments, desc="Energy correction", leave=False):
+        for experiment in tqdm(experiments, desc="Energy correction", leave=False):
             experiment_filter = dataframe["Experiment"] == experiment
             n_measurements = dataframe["Measurement"][experiment_filter].max()
             # Correct for small variations in measured energy points
@@ -414,9 +415,10 @@ class autoXAS:
             None: Function does not return anything.
         """
         dataframe = self.standards if standards else self.data
+        experiments = self.standard_experiments if standards else self.experiments
 
         avg_measurements = []
-        for experiment in tqdm(self.experiments, desc="Averaging data", leave=False):
+        for experiment in tqdm(experiments, desc="Averaging data", leave=False):
             first = True
             experiment_filter = dataframe["Experiment"] == experiment
 
@@ -460,7 +462,10 @@ class autoXAS:
         return None
 
     def _average_data_periodic(
-        self, period: Union[None, int] = None, n_periods: Union[None, int] = None
+        self,
+        period: Union[None, int] = None,
+        n_periods: Union[None, int] = None,
+        standards: bool = False,
     ) -> None:
         """
         Average data points for each experiment using periodic grouping of measurements.
@@ -475,15 +480,19 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
+
+        dataframe = self.standards if standards else self.data
+        experiments = self.standard_experiments if standards else self.experiments
+
         avg_measurements = []
         if (period and n_periods) or (not period and not n_periods):
             n_arguments = bool(period) + bool(n_periods)
             raise Exception(
                 f"Exactly 1 optional argument should be given. {n_arguments} was given."
             )
-        for experiment in tqdm(self.experiments, desc="Averaging data", leave=False):
-            experiment_filter = self.data["Experiment"] == experiment
-            n_total_measurements = np.amax(self.data["Measurement"][experiment_filter])
+        for experiment in tqdm(experiments, desc="Averaging data", leave=False):
+            experiment_filter = dataframe["Experiment"] == experiment
+            n_total_measurements = np.amax(dataframe["Measurement"][experiment_filter])
             if period:
                 n_measurements_to_average = period
                 new_n_measurements = int(np.ceil(n_total_measurements / period))
@@ -505,30 +514,30 @@ class autoXAS:
                     )
 
                 for measurement in measurements_to_average_temp:
-                    measurement_filter = (self.data["Experiment"] == experiment) & (
-                        self.data["Measurement"] == measurement
+                    measurement_filter = (dataframe["Experiment"] == experiment) & (
+                        dataframe["Measurement"] == measurement
                     )
                     if measurement == measurements_to_average_temp[0]:
-                        df_avg = self.data[measurement_filter].copy()
+                        df_avg = dataframe[measurement_filter].copy()
                         energy_avg = np.zeros_like(df_avg["Energy"], dtype=np.float64)
                         i0_avg = np.zeros_like(df_avg["I0"], dtype=np.float64)
                         i1_avg = np.zeros_like(df_avg["I1"], dtype=np.float64)
                         mu_avg = np.zeros_like(df_avg["mu"], dtype=np.float64)
 
-                    energy_avg += self.data["Energy"][measurement_filter].to_numpy()
-                    i0_avg += self.data["I0"][measurement_filter].to_numpy()
-                    i1_avg += self.data["I1"][measurement_filter].to_numpy()
-                    mu_avg += self.data["mu"][measurement_filter].to_numpy()
+                    energy_avg += dataframe["Energy"][measurement_filter].to_numpy()
+                    i0_avg += dataframe["I0"][measurement_filter].to_numpy()
+                    i1_avg += dataframe["I1"][measurement_filter].to_numpy()
+                    mu_avg += dataframe["mu"][measurement_filter].to_numpy()
 
                 n_measurements = len(measurements_to_average_temp)
                 df_avg["Energy"] = energy_avg / n_measurements
                 df_avg["I0"] = i0_avg / n_measurements
                 df_avg["I1"] = i1_avg / n_measurements
                 df_avg["mu"] = mu_avg / n_measurements
-                df_avg["Temperature"] = self.data["Temperature"][
+                df_avg["Temperature"] = dataframe["Temperature"][
                     measurement_filter
                 ].mean()
-                df_avg["Temperature (std)"] = self.data["Temperature"][
+                df_avg["Temperature (std)"] = dataframe["Temperature"][
                     measurement_filter
                 ].std()
                 df_avg["Measurement"] = measurement_number + 1
@@ -536,7 +545,11 @@ class autoXAS:
                 measurements_to_average_temp += n_measurements_to_average
 
                 avg_measurements.append(df_avg)
-        self.data = pd.concat(avg_measurements)
+
+        if standards:
+            self.standards = pd.concat(avg_measurements)
+        else:
+            self.data = pd.concat(avg_measurements)
         return None
 
     def _normalize_data(self, standards: bool = False) -> None:
@@ -563,11 +576,13 @@ class autoXAS:
                 raise ValueError("No data to normalize")
             dataframe = self.data
 
+        experiments = self.standard_experiments if standards else self.experiments
+
         dataframe["mu_norm"] = 0
         dataframe["pre_edge"] = 0
         dataframe["post_edge"] = 0
 
-        for experiment in tqdm(self.experiments, desc="Normalizing data", leave=False):
+        for experiment in tqdm(experiments, desc="Normalizing data", leave=False):
             experiment_filter = dataframe["Experiment"] == experiment
 
             for measurement in dataframe["Measurement"][experiment_filter].unique():
@@ -645,7 +660,13 @@ class autoXAS:
         self._normalize_data()
         return None
 
-    def load_standards(self) -> None:
+    def load_standards(
+        self,
+        average: Union[bool, str] = False,
+        measurements_to_average: Union[str, list[int], np.ndarray, range] = "all",
+        n_periods: Union[None, int] = None,
+        period: Union[None, int] = None,
+    ) -> None:
         """
         Load experimental standards and store in DataFrame.
 
@@ -658,9 +679,20 @@ class autoXAS:
         # raise NotImplementedError("Standard loading not implemented yet")
 
         self._read_data(standards=True)
+        self.standard_experiments = list(self.standards["Experiment"].unique())
         self._energy_correction(standards=True)
-        self._average_data(measurements_to_average="all", standards=True)
-
+        if average:
+            if average.lower() == "standard":
+                self._average_data(
+                    measurements_to_average=measurements_to_average, standards=True
+                )
+            elif average.lower() == "periodic":
+                self._average_data_periodic(
+                    period=period, n_periods=n_periods, standards=True
+                )
+            else:
+                raise ValueError('Invalid average. Must be "standard" or "periodic".')
+        self._normalize_data(standards=True)
         return None
 
     def _linear_combination(
@@ -735,8 +767,9 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        if use_standards and not self.standards:
-            raise ValueError("No standards loaded")
+        if use_standards:
+            if self.standards is None:
+                raise ValueError("No standards loaded")
 
         if isinstance(fit_range, list):
             if len(fit_range) != len(self.metals):
@@ -767,7 +800,39 @@ class autoXAS:
             )
 
             if use_standards:
-                raise NotImplementedError("LCA with standards not implemented yet")
+                component_measurements = []
+                component_names = []
+                for standard_experiment in self.standards["Experiment"][
+                    self.standards["Metal"] == metal
+                ].unique():
+                    measurements = self.standards["Measurement"][
+                        self.standards["Experiment"] == standard_experiment
+                    ].unique()
+                    for measurement in measurements:
+                        component_measurements.append(
+                            (standard_experiment, measurement)
+                        )
+                        if len(measurements) == 1:
+                            component_names.append(f"{standard_experiment}")
+                        else:
+                            component_names.append(
+                                f"{standard_experiment} ({measurement})"
+                            )
+                n_components = len(component_measurements)
+                if n_components < 2:
+                    raise ValueError(
+                        "At least 2 components are required to perform LCA."
+                    )
+                components_mu = []
+                for standard_name, measurement in component_measurements:
+                    measurement_filter = (
+                        (self.standards["Experiment"] == standard_name)
+                        & (self.standards["Measurement"] == measurement)
+                        & fit_range_filter
+                    )
+                    components_mu.append(
+                        self.standards["mu_norm"][measurement_filter].to_numpy()
+                    )
             else:
                 component_measurements = self.data["Measurement"][
                     self.data["Metal"] == metal
@@ -1250,7 +1315,7 @@ class autoXAS:
     def plot_data(
         self,
         experiment: Union[str, int] = 0,
-        standards: Union[None, list[str]] = None,
+        standards: Union[None, str, int] = None,
         save: bool = False,
         filename: str = "data",
         format: str = ".png",
@@ -1282,6 +1347,19 @@ class autoXAS:
             experiment = self.experiments[experiment]
         elif isinstance(experiment, str) and experiment not in self.experiments:
             raise ValueError("Invalid experiment name")
+
+        if isinstance(standards, int):
+            standards = [self.standard_experiments[standards]]
+        elif isinstance(standards, str):
+            if len(standards) == 1 or len(standards) == 2:
+                standards = self.standards["Experiment"][
+                    self.standards["Metal"] == standards
+                ].unique()
+            elif len(standards) > 2:
+                if standards not in self.standard_experiments:
+                    raise ValueError("Invalid standard name")
+                else:
+                    standards = [standards]
 
         n_measurements = int(
             self.data["Measurement"][self.data["Experiment"] == experiment].max()
@@ -1315,7 +1393,32 @@ class autoXAS:
             )
 
             if standards:
-                raise NotImplementedError("Standards not implemented yet")
+                i_standard = 0
+                for standard in standards:
+                    experiment_filter = self.standards["Experiment"] == standard
+                    measurements = self.standards["Measurement"][
+                        experiment_filter
+                    ].unique()
+                    for measurement in measurements:
+                        standard_filter = (self.standards["Experiment"] == standard) & (
+                            self.standards["Measurement"] == measurement
+                        )
+                        if len(measurements) == 1:
+                            line_name = f"{standard}"
+                        else:
+                            line_name = f"{standard} ({measurement})"
+                        fig.add_scatter(
+                            x=self.standards["Energy"][standard_filter],
+                            y=self.standards["mu_norm"][standard_filter],
+                            mode="lines",
+                            name=line_name,
+                            line=dict(
+                                width=2,
+                                dash="dash",
+                                color=px.colors.qualitative.Safe[i_standard],
+                            ),
+                        )
+                        i_standard += 1
 
             # Specify title text
             if show_title:
