@@ -914,7 +914,10 @@ class autoXAS:
                     list_component.append(components_mu[j])
                     list_parameter_name.append(name)
                     list_parameter_value.append(param.value)
-                    list_parameter_error.append(param.stderr)
+                    if param.stderr is not None:
+                        list_parameter_error.append(param.stderr)
+                    else:
+                        list_parameter_error.append(1e-6)
 
         self.LCA_result = pd.DataFrame(
             {
@@ -1837,8 +1840,12 @@ class autoXAS:
             hovermode = "x unified"
 
             # Plot the measurements of the selected experiment/edge
+            df_data = self.LCA_result[experiment_filter]
+            # df_data["Clipped Parameter Error"] = df_data["Parameter Error"].clip(
+            #     upper=1
+            # )
             fig = line(
-                data_frame=self.LCA_result[experiment_filter],
+                data_frame=df_data,
                 x="Measurement",
                 y="Parameter Value",
                 error_y="Parameter Error",
@@ -1872,6 +1879,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
+                yaxis_range=[-0.5, 1.5],
                 xaxis_title="<b>Measurement</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
@@ -2147,6 +2155,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
+                yaxis_range=[-0.5, 1.5],
                 xaxis_title="<b>Measurement</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
