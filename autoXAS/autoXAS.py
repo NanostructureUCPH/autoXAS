@@ -695,6 +695,42 @@ class autoXAS:
         self._normalize_data(standards=True)
         return None
 
+    def exclude_data(
+        self,
+        measurements: Union[list[int], np.ndarray],
+        experiment: Union[str, int] = "all",
+    ) -> None:
+        """
+        Exclude data points from the DataFrame.
+
+        Args:
+            measurements (Union[list[int], np.ndarray]): Measurements to exclude.
+            experiment (Union[str, int], optional): Experiment to exclude data from. Defaults to "all".
+
+        Returns:
+            None: Function does not return anything.
+        """
+        if experiment == "all":
+            experiments = self.experiments
+        elif isinstance(experiment, str):
+            if not experiment in self.experiments:
+                raise ValueError("Invalid experiment name")
+            experiments = [experiment]
+        elif isinstance(experiment, int):
+            experiments = [self.experiments[experiment]]
+        else:
+            raise ValueError("Invalid experiment name")
+
+        for experiment in experiments:
+            for measurement in measurements:
+                self.data = self.data[
+                    ~(
+                        (self.data["Experiment"] == experiment)
+                        & (self.data["Measurement"] == measurement)
+                    )
+                ]
+        return None
+
     def _linear_combination(
         self, weights: Parameters, components: list[np.array]
     ) -> np.array:
