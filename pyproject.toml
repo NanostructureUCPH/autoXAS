@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autoXAS"
-version = "0.0.1"
+version = "0.0.2"
 description = "A package for automating the data processing involved in the analysis of (in-situ) X-ray absorption spectroscopy data."
 authors = [
     { name = "Ulrik Friis-Jensen", email = "ufj@chem.ku.dk" },
@@ -18,13 +18,13 @@ classifiers = [
 requires-python = ">=3.7"
 dependencies = [
     "numpy",
-    "pandas",
+    "pandas>=1.5.0",
     "xraylarch",
     "matplotlib",
     "plotly",
     "plotly.express",
     "seaborn",
-    "lmfit",
+    "lmfit>=1.0.0",
     "scikit-learn",
     "tqdm",
 ]
