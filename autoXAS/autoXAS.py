@@ -284,39 +284,60 @@ class autoXAS:
 
                 # Ensure all measurements have the same number of data points
                 for metal in data["Metal"].unique():
-                    metal_filter = (data["Metal"] == metal)
+                    metal_filter = data["Metal"] == metal
                     data_point_count = data["Measurement"][metal_filter].value_counts()
                     if len(data_point_count) > 1:
                         most_common_count = data_point_count.value_counts().idxmax()
-                        outlier_indices = data_point_count[data_point_count != most_common_count].index
+                        outlier_indices = data_point_count[
+                            data_point_count != most_common_count
+                        ].index
                         # Deal with outliers
                         for outlier_index in outlier_indices:
                             if data_point_count[outlier_index] > most_common_count:
                                 # Remove data points from the end of the measurement
                                 data.drop(
-                                    data[metal_filter & (data["Measurement"] == outlier_index)].index[-(data_point_count[outlier_index] - most_common_count) :],
-                                    inplace=True
+                                    data[
+                                        metal_filter
+                                        & (data["Measurement"] == outlier_index)
+                                    ].index[
+                                        -(
+                                            data_point_count[outlier_index]
+                                            - most_common_count
+                                        ) :
+                                    ],
+                                    inplace=True,
                                 )
-                                print(f'Removed {data_point_count[outlier_index] - most_common_count} data points from the end of measurement {outlier_index} for {metal}.')
+                                print(
+                                    f"Removed {data_point_count[outlier_index] - most_common_count} data points from the end of measurement {outlier_index} for {metal}."
+                                )
                             elif data_point_count[outlier_index] < most_common_count:
                                 # Remove the measurement
                                 data.drop(
-                                    data[metal_filter & (data["Measurement"] == outlier_index)].index,
-                                    inplace=True
+                                    data[
+                                        metal_filter
+                                        & (data["Measurement"] == outlier_index)
+                                    ].index,
+                                    inplace=True,
                                 )
-                                print(f'Removed measurement {outlier_index} for {metal} due to an unexpected low number of data points.')
+                                print(
+                                    f"Removed measurement {outlier_index} for {metal} due to an unexpected low number of data points."
+                                )
 
                 # Calculate mean and standard deviation of temperature for each measurement
                 for metal in data["Metal"].unique():
-                    metal_filter = (data["Metal"] == metal)
+                    metal_filter = data["Metal"] == metal
                     for measurement in data["Measurement"][metal_filter].unique():
                         measurement_filter = (data["Metal"] == metal) & (
                             data["Measurement"] == measurement
                         )
-                        temperature_mean = data["Temperature"][measurement_filter].mean()
+                        temperature_mean = data["Temperature"][
+                            measurement_filter
+                        ].mean()
                         temperature_std = data["Temperature"][measurement_filter].std()
                         data.loc[measurement_filter, "Temperature"] = temperature_mean
-                        data.loc[measurement_filter, "Temperature (std)"] = temperature_std
+                        data.loc[measurement_filter, "Temperature (std)"] = (
+                            temperature_std
+                        )
 
                 # Specify data types in specific columns
                 data = data.astype(
@@ -686,6 +707,7 @@ class autoXAS:
         self._read_data()
         self.experiments = list(self.data["Experiment"].unique())
         self.metals = list(self.data["Metal"].unique())
+        self.excluded_data = {experiment: [] for experiment in self.experiments}
         if self.edges is not None:
             self._calculate_edge_shift(self.metals, self.edges)
         self._energy_correction()
@@ -768,6 +790,8 @@ class autoXAS:
                         & (self.data["Measurement"] == measurement)
                     )
                 ]
+                # Log excluded data
+                self.excluded_data[experiment].append(measurement)
         return None
 
     def _linear_combination(
@@ -1118,7 +1142,9 @@ class autoXAS:
                     component_list.append(component)
                     component_names_list.append(f"PC {j+1}")
                     component_number_list.append(j + 1)
-                    weights_list.append(pca_weights[measurement - 1, j])
+                    weights_list.append(
+                        pca_weights[np.where(measurements == measurement)[0][0], j]
+                    )
 
         self.PCA_result = pd.DataFrame(
             {
@@ -1146,6 +1172,7 @@ class autoXAS:
         n_components: Union[None, str, float, int, list] = None,
         change_cutoff: float = 0.25,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        max_components: int = 10,
         seed: Union[None, int] = None,
     ) -> None:
         """
@@ -1155,6 +1182,7 @@ class autoXAS:
             n_components (Union[None, str, float, int, list], optional): Number of components to keep. Defaults to None.
             change_cutoff (float, optional): Minimum change in reconstruction error to determine number of components. Defaults to 0.25.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            max_components (int, optional): Maximum number of components to use for automatic NMF component determination. Defaults to 10.
             seed (Union[None, int], optional): Random seed for reproducibility. Defaults to None.
 
         Raises:
@@ -1168,7 +1196,9 @@ class autoXAS:
                 raise ValueError("Length of list must match number of experiments")
         elif n_components is None:
             n_components = self._determine_NMF_components(
-                change_cutoff=change_cutoff, fit_range=fit_range
+                change_cutoff=change_cutoff,
+                fit_range=fit_range,
+                max_components=max_components,
             )
         else:
             n_components = [n_components] * len(self.experiments)
@@ -1244,7 +1274,9 @@ class autoXAS:
                     component_list.append(component)
                     component_names_list.append(f"Component {j+1}")
                     component_number_list.append(j + 1)
-                    weights_list.append(nmf_weights[measurement - 1, j])
+                    weights_list.append(
+                        nmf_weights[np.where(measurements == measurement)[0][0], j]
+                    )
 
         self.NMF_result = pd.DataFrame(
             {
@@ -1268,6 +1300,7 @@ class autoXAS:
         self,
         change_cutoff: int,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        max_components: int = 10,
     ) -> list[int]:
         """
         Determine the number of components to use for Non-negative Matrix Factorization (NMF).
@@ -1275,6 +1308,7 @@ class autoXAS:
         Args:
             change_cutoff (int): Minimum change in reconstruction error to determine number of components.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            max_components (int, optional): Maximum number of components to use for automatic NMF component determination. Defaults to 10.
 
         Returns:
             list[int]: Number of components to use for NMF.
@@ -1312,7 +1346,7 @@ class autoXAS:
                 a_max=None,
             )
 
-            for n_components in range(len(measurements)):
+            for n_components in range(min(max_components, len(measurements))):
                 nmf = NMF(n_components=n_components + 1)
                 nmf.fit(data)
 
@@ -1383,12 +1417,16 @@ class autoXAS:
             dataframe = self.standards
         elif data == "LCA":
             dataframe = self.LCA_result
+            # Explode data in list columns
+            dataframe = dataframe.explode(["Energy", "Component"])
         elif data == "PCA":
             dataframe = self.PCA_result
+            # Explode data in list columns
+            dataframe = dataframe.explode(["PCA Mean", "Energy", "Component"])
         elif data == "NMF":
             dataframe = self.NMF_result
-
-        # TODO: Unravel nested columns before saving
+            # Explode data in list columns
+            dataframe = dataframe.explode(["Energy", "Component"])
 
         dataframe.to_csv(directory + filename, index=False, columns=columns)
         return None
@@ -1416,6 +1454,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the normalized data for a given experiment.
@@ -1429,6 +1468,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1532,6 +1572,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -1585,6 +1637,7 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the temperature curves for all experiments.
@@ -1595,6 +1648,7 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -1648,6 +1702,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -1668,6 +1734,7 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot a waterfall plot for a given experiment.
@@ -1682,6 +1749,7 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1702,7 +1770,7 @@ class autoXAS:
             index=y_axis, columns="Energy", values="mu_norm"
         )
 
-        if y_axis == 'Temperature':
+        if y_axis == "Temperature":
             y_unit = self.temperature_unit
             y_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -1758,6 +1826,18 @@ class autoXAS:
             fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -1779,6 +1859,7 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the change in normalized data for a given experiment
@@ -1794,6 +1875,7 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1825,7 +1907,7 @@ class autoXAS:
             index=y_axis, columns="Energy", values="Difference from reference"
         )
 
-        if y_axis == 'Temperature':
+        if y_axis == "Temperature":
             y_unit = self.temperature_unit
             y_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -1894,6 +1976,18 @@ class autoXAS:
             fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -1913,6 +2007,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the results of Linear Combination Analysis (LCA) for a given experiment.
@@ -1926,6 +2021,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1942,7 +2038,7 @@ class autoXAS:
 
         experiment_filter = self.LCA_result["Experiment"] == experiment
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -2004,6 +2100,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2025,6 +2133,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot a single frame of the Linear Combination Analysis (LCA) for a given experiment.
@@ -2038,6 +2147,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2191,6 +2301,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2211,6 +2333,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot comparison of Linear Combination Analysis (LCA) components across experiments.
@@ -2224,6 +2347,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -2232,7 +2356,7 @@ class autoXAS:
             None: Function does not return anything.
         """
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -2289,6 +2413,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2309,6 +2445,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the results of Principal Component Analysis (PCA) for a given experiment.
@@ -2322,6 +2459,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2338,7 +2476,7 @@ class autoXAS:
 
         experiment_filter = self.PCA_result["Experiment"] == experiment
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -2388,6 +2526,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2408,6 +2558,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot a single frame of the Principal Component Analysis (PCA) for a given experiment
@@ -2421,6 +2572,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2582,6 +2734,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2601,6 +2765,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot comparison of Principal Component Analysis (PCA) components across experiments.
@@ -2614,6 +2779,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Length of list must match number of experiments.
@@ -2629,7 +2795,7 @@ class autoXAS:
         else:
             component = [component] * len(self.experiments)
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -2690,6 +2856,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2713,6 +2891,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2%",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the explained variance of Principal Component Analysis (PCA) for all experiments.
@@ -2728,6 +2907,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2%".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid plot type.
@@ -2906,6 +3086,18 @@ class autoXAS:
                 ),
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -2927,6 +3119,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the results of Non-negative Matrix Factorization (NMF) for a given experiment.
@@ -2940,6 +3133,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2956,7 +3150,7 @@ class autoXAS:
 
         experiment_filter = self.NMF_result["Experiment"] == experiment
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -3006,6 +3200,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -3027,6 +3233,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot a single frame of the Non-negative Matrix Factorization (NMF) for a given experiment.
@@ -3040,6 +3247,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Invalid experiment name.
@@ -3187,6 +3395,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -3208,6 +3428,7 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot comparison of Non-negative Matrix Factorization (NMF) components across experiments.
@@ -3221,6 +3442,7 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             ValueError: Length of list must match number of experiments.
@@ -3236,7 +3458,7 @@ class autoXAS:
         else:
             component = [component] * len(self.experiments)
 
-        if x_axis == 'Temperature':
+        if x_axis == "Temperature":
             x_unit = self.temperature_unit
             x_axis_unit = f"[{self.temperature_unit}]"
         else:
@@ -3297,6 +3519,18 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
 
@@ -3316,6 +3550,7 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
     ):
         """
         Plot the change in error of Non-negative Matrix Factorization (NMF) as a function of number of components.
@@ -3327,6 +3562,7 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -3389,6 +3625,18 @@ class autoXAS:
                 ),
                 hovermode=hovermode,
             )
+
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
 
             if save:
                 fig.write_image(self.save_directory + "figures/" + filename + format)
