@@ -15,7 +15,9 @@
 
 ### Prerequisites
 
-**autoXAS** requires python >= 3.7. If needed, create a new environment with a compatible python version:
+**autoXAS** requires python >= 3.7. 
+
+If needed, create a new environment with a compatible python version:
 ```
 conda create -n autoXAS_env python=3.10
 ```
@@ -38,7 +40,7 @@ Clone the repository.
 git clone git@github.com:UlrikFriisJensen/autoXAS.git
 ```
 
-Run the following command to install the **autoXAS** package (**Requires**: Python >=3.7).
+Run the following command to install the **autoXAS** package.
 ```
 pip install .
 ```

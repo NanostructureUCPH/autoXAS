@@ -26,7 +26,7 @@ from tqdm.auto import tqdm
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
-pio.renderers.default = "notebook"
+pio.renderers.default = "vscode"
 
 # %% Other functions
 
@@ -89,7 +89,7 @@ def line(error_y_mode=None, **kwargs):
 
 
 class autoXAS:
-    def __init__(self, metals=None, edges=None) -> None:
+    def __init__(self) -> None:
         self.data_directory = None
         self.data_type = ".dat"
         self.data = None
@@ -104,14 +104,13 @@ class autoXAS:
         self.I1_columns = None
         self.temperature_column = None
         self.metals = None
+        self.edges = None
         self.xas_mode = "Flourescence"
         self.energy_unit = "eV"
         self.energy_column_unitConversion = 1
         self.temperature_unit = "K"
         self.interactive = False
         self.edge_correction_energies = {}
-        if metals and edges:
-            self._calculate_edge_shift(metals, edges)
 
     def save_config(self, config_name: str, save_directory: str = "./") -> None:
         """
@@ -132,7 +131,8 @@ class autoXAS:
             I0_columns=self.I0_columns,
             I1_columns=self.I1_columns,
             temperature_column=self.temperature_column,
-            edge_correction=self.edge_correction,
+            metals=self.metals,
+            edges=self.edges,
             xas_mode=self.xas_mode,
             energy_unit=self.energy_unit,
             energy_column_unitConversion=self.energy_column_unitConversion,
@@ -164,7 +164,8 @@ class autoXAS:
         self.I0_columns = config["I0_columns"]
         self.I1_columns = config["I1_columns"]
         self.temperature_column = config["temperature_column"]
-        self.edge_correction = config["edge_correction"]
+        self.metals = config["metals"]
+        self.edges = config["edges"]
         self.xas_mode = config["xas_mode"]
         self.energy_unit = config["energy_unit"]
         self.energy_column_unitConversion = config["energy_column_unitConversion"]
@@ -281,6 +282,42 @@ class autoXAS:
                     measurement_number_values.append(int(measurement_number))
                 data["Measurement"] = measurement_number_values
 
+                # Ensure all measurements have the same number of data points
+                for metal in data["Metal"].unique():
+                    metal_filter = (data["Metal"] == metal)
+                    data_point_count = data["Measurement"][metal_filter].value_counts()
+                    if len(data_point_count) > 1:
+                        most_common_count = data_point_count.value_counts().idxmax()
+                        outlier_indices = data_point_count[data_point_count != most_common_count].index
+                        # Deal with outliers
+                        for outlier_index in outlier_indices:
+                            if data_point_count[outlier_index] > most_common_count:
+                                # Remove data points from the end of the measurement
+                                data.drop(
+                                    data[metal_filter & (data["Measurement"] == outlier_index)].index[-(data_point_count[outlier_index] - most_common_count) :],
+                                    inplace=True
+                                )
+                                print(f'Removed {data_point_count[outlier_index] - most_common_count} data points from the end of measurement {outlier_index} for {metal}.')
+                            elif data_point_count[outlier_index] < most_common_count:
+                                # Remove the measurement
+                                data.drop(
+                                    data[metal_filter & (data["Measurement"] == outlier_index)].index,
+                                    inplace=True
+                                )
+                                print(f'Removed measurement {outlier_index} for {metal} due to an unexpected low number of data points.')
+
+                # Calculate mean and standard deviation of temperature for each measurement
+                for metal in data["Metal"].unique():
+                    metal_filter = (data["Metal"] == metal)
+                    for measurement in data["Measurement"][metal_filter].unique():
+                        measurement_filter = (data["Metal"] == metal) & (
+                            data["Measurement"] == measurement
+                        )
+                        temperature_mean = data["Temperature"][measurement_filter].mean()
+                        temperature_std = data["Temperature"][measurement_filter].std()
+                        data.loc[measurement_filter, "Temperature"] = temperature_mean
+                        data.loc[measurement_filter, "Temperature (std)"] = temperature_std
+
                 # Specify data types in specific columns
                 data = data.astype(
                     {"Experiment": str, "Metal": str, "Measurement": int}
@@ -328,7 +365,7 @@ class autoXAS:
             edge_energy_table = xray_edge(metal, edge, energy_only=True)
 
             measurement_filter = (self.data["Metal"] == metal) & (
-                self.data["Experiment"] == 1
+                self.data["Measurement"] == 1
             )
             edge_energy_measured = find_e0(
                 self.data["Energy"][measurement_filter],
@@ -649,6 +686,8 @@ class autoXAS:
         self._read_data()
         self.experiments = list(self.data["Experiment"].unique())
         self.metals = list(self.data["Metal"].unique())
+        if self.edges is not None:
+            self._calculate_edge_shift(self.metals, self.edges)
         self._energy_correction()
         if average:
             if average.lower() == "standard":
@@ -1009,6 +1048,7 @@ class autoXAS:
         experiment_list = []
         metal_list = []
         measurement_list = []
+        temperature_list = []
         fit_range_list = []
         n_components_list = []
         pca_mean_list = []
@@ -1032,6 +1072,11 @@ class autoXAS:
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
+
+            temperatures = self.data["Temperature"][
+                self.data["Experiment"] == experiment
+            ].unique()
+
             data = (
                 self.data["mu_norm"][
                     (self.data["Experiment"] == experiment) & fit_range_filter
@@ -1046,7 +1091,7 @@ class autoXAS:
 
             # Store PCA results
             for j, component in enumerate(pca.components_):
-                for measurement in measurements:
+                for measurement, temperature in zip(measurements, temperatures):
                     experiment_list.append(experiment)
                     metal_list.append(
                         self.data["Metal"][
@@ -1054,6 +1099,7 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    temperature_list.append(temperature)
                     fit_range_list.append(fit_range[i])
                     n_components_list.append(pca.n_components_)
                     pca_mean_list.append(pca.mean_)
@@ -1079,6 +1125,7 @@ class autoXAS:
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Temperature": temperature_list,
                 "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "PCA Mean": pca_mean_list,
@@ -1137,6 +1184,7 @@ class autoXAS:
         experiment_list = []
         metal_list = []
         measurement_list = []
+        temperature_list = []
         fit_range_list = []
         n_components_list = []
         energy_list = []
@@ -1156,6 +1204,11 @@ class autoXAS:
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
+
+            temperatures = self.data["Temperature"][
+                self.data["Experiment"] == experiment
+            ].unique()
+
             data = (
                 self.data["mu_norm"][
                     (self.data["Experiment"] == experiment) & fit_range_filter
@@ -1172,7 +1225,7 @@ class autoXAS:
 
             # Store NMF results
             for j, component in enumerate(nmf.components_):
-                for measurement in measurements:
+                for measurement, temperature in zip(measurements, temperatures):
                     experiment_list.append(experiment)
                     metal_list.append(
                         self.data["Metal"][
@@ -1180,6 +1233,7 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    temperature_list.append(temperature)
                     fit_range_list.append(fit_range[i])
                     n_components_list.append(nmf.n_components_)
                     energy_list.append(
@@ -1197,6 +1251,7 @@ class autoXAS:
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Temperature": temperature_list,
                 "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "Energy": energy_list,
@@ -1647,6 +1702,13 @@ class autoXAS:
             index=y_axis, columns="Energy", values="mu_norm"
         )
 
+        if y_axis == 'Temperature':
+            y_unit = self.temperature_unit
+            y_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            y_unit = ""
+            y_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".2f"
@@ -1675,19 +1737,21 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title=f"<b>{y_axis}</b>",
+                yaxis_title=f"<b>{y_axis} {y_axis_unit}</b>",
                 font=dict(
                     size=14,
                 ),
                 hovermode="closest",
                 coloraxis=dict(
                     colorbar=dict(
-                        titleside="right",
+                        title=dict(
+                            side="right",
+                        )
                     ),
                 ),
             )
 
-            hovertemplate = f"Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>Normalized: %{{z:.2f}}<extra></extra>"
+            hovertemplate = f"{y_axis}: %{{y}} {y_unit}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>Normalized: %{{z:.2f}}<extra></extra>"
             fig.update_traces(hovertemplate=hovertemplate)
 
             # Add and format spikes
@@ -1761,6 +1825,13 @@ class autoXAS:
             index=y_axis, columns="Energy", values="Difference from reference"
         )
 
+        if y_axis == 'Temperature':
+            y_unit = self.temperature_unit
+            y_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            y_unit = ""
+            y_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".2f"
@@ -1802,19 +1873,21 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title=f"<b>{y_axis}</b>",
+                yaxis_title=f"<b>{y_axis} {y_axis_unit}</b>",
                 font=dict(
                     size=14,
                 ),
                 hovermode="closest",
                 coloraxis=dict(
                     colorbar=dict(
-                        titleside="right",
+                        title=dict(
+                            side="right",
+                        )
                     ),
                 ),
             )
 
-            hovertemplate = f"Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>\u0394 Normalized: %{{z:.2f}}<extra></extra>"
+            hovertemplate = f"{y_axis}: %{{y}} {y_unit}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>\u0394 Normalized: %{{z:.2f}}<extra></extra>"
             fig.update_traces(hovertemplate=hovertemplate)
 
             # Add and format spikes
@@ -1833,6 +1906,7 @@ class autoXAS:
     def plot_LCA(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "LCA",
         format: str = ".png",
@@ -1845,6 +1919,7 @@ class autoXAS:
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "LCA".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -1867,6 +1942,13 @@ class autoXAS:
 
         experiment_filter = self.LCA_result["Experiment"] == experiment
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1877,12 +1959,10 @@ class autoXAS:
 
             # Plot the measurements of the selected experiment/edge
             df_data = self.LCA_result[experiment_filter]
-            # df_data["Clipped Parameter Error"] = df_data["Parameter Error"].clip(
-            #     upper=1
-            # )
+
             fig = line(
                 data_frame=df_data,
-                x="Measurement",
+                x=x_axis,
                 y="Parameter Value",
                 error_y="Parameter Error",
                 error_y_mode="band",
@@ -1916,7 +1996,7 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 yaxis_range=[-0.5, 1.5],
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
@@ -2124,6 +2204,7 @@ class autoXAS:
     def plot_LCA_comparison(
         self,
         component: int = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "LCA_comparison",
         format: str = ".png",
@@ -2136,6 +2217,7 @@ class autoXAS:
 
         Args:
             component (int): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "LCA_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -2150,6 +2232,13 @@ class autoXAS:
             None: Function does not return anything.
         """
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2163,7 +2252,7 @@ class autoXAS:
                 data_frame=self.LCA_result[
                     self.LCA_result["Parameter Name"] == f"w{component}"
                 ],
-                x="Measurement",
+                x=x_axis,
                 y="Parameter Value",
                 error_y="Parameter Error",
                 error_y_mode="band",
@@ -2192,7 +2281,7 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 yaxis_range=[-0.5, 1.5],
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
@@ -2213,6 +2302,7 @@ class autoXAS:
     def plot_PCA(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "PCA",
         format: str = ".png",
@@ -2225,6 +2315,7 @@ class autoXAS:
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "PCA".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -2247,6 +2338,13 @@ class autoXAS:
 
         experiment_filter = self.PCA_result["Experiment"] == experiment
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2256,7 +2354,7 @@ class autoXAS:
             # Plot the measurements of the selected experiment/edge
             fig = px.line(
                 data_frame=self.PCA_result[experiment_filter],
-                x="Measurement",
+                x=x_axis,
                 y="Weight",
                 color="Component Name",
                 color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
@@ -2282,7 +2380,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
@@ -2496,6 +2594,7 @@ class autoXAS:
     def plot_PCA_comparison(
         self,
         component: Union[int, list[int]] = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "PCA_comparison",
         format: str = ".png",
@@ -2508,6 +2607,7 @@ class autoXAS:
 
         Args:
             component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "PCA_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -2529,6 +2629,13 @@ class autoXAS:
         else:
             component = [component] * len(self.experiments)
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2545,7 +2652,7 @@ class autoXAS:
 
                 fig.add_trace(
                     go.Scatter(
-                        x=self.PCA_result["Measurement"][data_filter],
+                        x=self.PCA_result[x_axis][data_filter],
                         y=self.PCA_result["Weight"][data_filter],
                         name=self.PCA_result["Metal"][data_filter].values[0]
                         + f" (PC {component[i]})",
@@ -2575,7 +2682,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
@@ -2813,6 +2920,7 @@ class autoXAS:
     def plot_NMF(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "NMF",
         format: str = ".png",
@@ -2825,6 +2933,7 @@ class autoXAS:
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "NMF".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -2847,6 +2956,13 @@ class autoXAS:
 
         experiment_filter = self.NMF_result["Experiment"] == experiment
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2856,7 +2972,7 @@ class autoXAS:
             # Plot the measurements of the selected experiment/edge
             fig = px.line(
                 data_frame=self.NMF_result[experiment_filter],
-                x="Measurement",
+                x=x_axis,
                 y="Weight",
                 color="Component Name",
                 color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
@@ -2882,7 +2998,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
@@ -3085,6 +3201,7 @@ class autoXAS:
     def plot_NMF_comparison(
         self,
         component: Union[int, list[int]] = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "NMF_comparison",
         format: str = ".png",
@@ -3097,6 +3214,7 @@ class autoXAS:
 
         Args:
             component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "NMF_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
@@ -3118,6 +3236,13 @@ class autoXAS:
         else:
             component = [component] * len(self.experiments)
 
+        if x_axis == 'Temperature':
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -3134,7 +3259,7 @@ class autoXAS:
 
                 fig.add_trace(
                     go.Scatter(
-                        x=self.NMF_result["Measurement"][data_filter],
+                        x=self.NMF_result[x_axis][data_filter],
                         y=self.NMF_result["Weight"][data_filter],
                         name=self.NMF_result["Metal"][data_filter].values[0]
                         + f" (Component {component[i]})",
@@ -3164,7 +3289,7 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
                     size=14,
