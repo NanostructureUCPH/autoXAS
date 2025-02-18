@@ -4,6 +4,7 @@
 # Standard library imports
 from pathlib import Path
 from typing import Union
+from subprocess import call
 
 # Package imports
 import matplotlib.pyplot as plt
@@ -171,6 +172,8 @@ class autoXAS:
         self.energy_column_unitConversion = config["energy_column_unitConversion"]
         self.temperature_unit = config["temperature_unit"]
         self.save_directory = config["save_directory"]
+        if not Path(self.save_directory).exists():
+            Path(self.save_directory).mkdir(parents=True, exist_ok=True)
         return None
 
     def _read_data(self, standards: bool = False) -> None:
@@ -384,17 +387,21 @@ class autoXAS:
         """
         for metal, edge in zip(metals, edges):
             edge_energy_table = xray_edge(metal, edge, energy_only=True)
-
-            measurement_filter = (self.data["Metal"] == metal) & (
-                self.data["Measurement"] == 1
-            )
-            edge_energy_measured = find_e0(
-                self.data["Energy"][measurement_filter],
-                self.data["mu"][measurement_filter],
-            )
-            self.edge_correction_energies[metal] = (
-                edge_energy_table - edge_energy_measured
-            )
+            for measurement in range(1, self.data["Measurement"].max() + 1):
+                try:
+                    measurement_filter = (self.data["Metal"] == metal) & (
+                        self.data["Measurement"] == measurement
+                    )
+                    edge_energy_measured = find_e0(
+                        self.data["Energy"][measurement_filter],
+                        self.data["mu"][measurement_filter],
+                    )
+                    self.edge_correction_energies[metal] = (
+                        edge_energy_table - edge_energy_measured
+                    )
+                    break
+                except:
+                    continue
         return None
 
     def _energy_correction(self, standards: bool = False) -> None:
@@ -1585,7 +1592,24 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                if format == ".emf":
+                    filepath = self.save_directory + filename
+                    print(f"Saving plot to {filepath}.emf")
+                    fig.write_image(filepath + ".svg")
+
+                    call(
+                        [
+                            "inkscape",
+                            "--export-emf",
+                            filepath + ".emf",
+                            filepath + ".svg",
+                        ]
+                    )
+
+                else:
+                    filepath = self.save_directory + filename + format
+                    print(f"Saving plot to {filepath}")
+                    fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1624,7 +1648,9 @@ class autoXAS:
             # Enforce matplotlibs tight layout
             plt.tight_layout()
             if save:
-                plt.savefig(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                plt.savefig(filepath)
 
             if show:
                 plt.show()
@@ -1715,7 +1741,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1839,7 +1867,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1989,7 +2019,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2113,7 +2145,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2314,7 +2348,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2426,7 +2462,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2539,7 +2577,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2747,7 +2787,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2869,7 +2911,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3099,7 +3143,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3213,7 +3259,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3408,7 +3456,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3532,7 +3582,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3639,7 +3691,9 @@ class autoXAS:
                 )
 
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
