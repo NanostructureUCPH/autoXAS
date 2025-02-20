@@ -1,4 +1,4 @@
-![autoXAS_logo](./figures/autoXAS_logo.png)
+![autoXAS_logo](./figures/autoXAS_logo.svg)
 # Automated analysis of X-ray Absorption Spectroscopy (XAS) data
 
 

@@ -92,7 +92,7 @@ def line(error_y_mode=None, **kwargs):
 class autoXAS:
     def __init__(self) -> None:
         self.data_directory = None
-        self.data_type = ".dat"
+        self.data_format = ".dat"
         self.data = None
         self.raw_data = None
         self.standards_directory = None
@@ -106,7 +106,7 @@ class autoXAS:
         self.temperature_column = None
         self.metals = None
         self.edges = None
-        self.xas_mode = "Flourescence"
+        self.xas_mode = "Fluorescence"
         self.energy_unit = "eV"
         self.energy_column_unitConversion = 1
         self.temperature_unit = "K"
@@ -127,7 +127,7 @@ class autoXAS:
         config = dict(
             data_directory=self.data_directory,
             standards_directory=self.standards_directory,
-            data_type=self.data_type,
+            data_format=self.data_format,
             energy_column=self.energy_column,
             I0_columns=self.I0_columns,
             I1_columns=self.I1_columns,
@@ -160,7 +160,7 @@ class autoXAS:
             config = yaml.load(file, Loader=yaml.FullLoader)
         self.data_directory = config["data_directory"]
         self.standards_directory = config["standards_directory"]
-        self.data_type = config["data_type"]
+        self.data_format = config["data_format"]
         self.energy_column = config["energy_column"]
         self.I0_columns = config["I0_columns"]
         self.I1_columns = config["I1_columns"]
@@ -197,7 +197,7 @@ class autoXAS:
             if self.data_directory is None:
                 raise ValueError("No data directory specified")
 
-        if self.data_type == ".dat":
+        if self.data_format == ".dat":
             if standards:
                 data_files = list(Path(self.standards_directory).rglob("*.dat"))
             else:
@@ -268,10 +268,12 @@ class autoXAS:
                     data["I1"] = raw_data[self.I1_columns]
 
                 # Calculate absorption coefficient
-                if self.xas_mode == "Flourescence":
+                if self.xas_mode == "Fluorescence":
                     data["mu"] = data["I1"] / data["I0"]
                 elif self.xas_mode == "Transmission":
                     data["mu"] = np.log(data["I0"] / data["I1"])
+                else:
+                    raise ValueError("Invalid XAS mode")
 
                 # Remove data points with energy = 0
                 data = data[data["Energy"] != 0]
@@ -370,7 +372,7 @@ class autoXAS:
                     else:
                         self.data = pd.concat([self.data, data]).reset_index(drop=True)
 
-        elif self.data_type == ".h5":
+        elif self.data_format == ".h5":
             raise NotImplementedError("HDF5 file reading not implemented yet")
         return None
 
