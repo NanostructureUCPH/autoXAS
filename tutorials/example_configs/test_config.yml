@@ -3,7 +3,7 @@ I0_columns:
 - mon_4
 I1_columns: xmap_roi00
 data_directory: ../Data/ESRF_SNBL/Averaging/
-standards_directory: null
+standards_config: test_config_standards.yml
 data_format: .dat
 metals: null
 edges: null

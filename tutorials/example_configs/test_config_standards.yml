@@ -3,13 +3,12 @@ I0_columns:
 - mon_4
 I1_columns: xmap_roi00
 data_directory: ../Data/ESRF_SNBL/Averaging/
-standards_directory: ../Data/ESRF_SNBL/Averaging/
 data_type: .dat
-edge_correction: false
+metals: null
+edges: null
 energy_column: ZapEnergy
 energy_column_unitConversion: 1000
 energy_unit: eV
 temperature_unit: °C
-save_directory: ./
 temperature_column: null
-xas_mode: Flourescence
+xas_mode: Fluorescence
