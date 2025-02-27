@@ -3830,7 +3830,7 @@ class autoXAS:
 
         return None
 
-    def plot_NMF_error_change(
+    def plot_NMF_error_gradient(
         self,
         change_cutoff: float = 0.25,
         save: bool = False,
@@ -3842,7 +3842,7 @@ class autoXAS:
         font_size: int = 14,
     ):
         """
-        Plot the change in error of Non-negative Matrix Factorization (NMF) as a function of number of components.
+        Plot the gradient of reconstruction error of Non-negative Matrix Factorization (NMF) as a function of number of components.
 
         Args:
             change_cutoff (float, optional): Error change cutoff to plot. Defaults to 0.25.
@@ -3900,7 +3900,7 @@ class autoXAS:
 
             # Specify title text
             if show_title:
-                title_text = f"<b>NMF Error Change</b>"
+                title_text = f"<b>NMF Error Gradient</b>"
             else:
                 title_text = ""
 
@@ -3909,7 +3909,7 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title="<b>Number of NMF components</b>",
-                yaxis_title="<b>\u0394 Error</b>",
+                yaxis_title="<b>Error gradient</b>",
                 font=dict(
                     family="Arial",
                     size=font_size,
