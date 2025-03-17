@@ -4,6 +4,7 @@
 # Standard library imports
 from pathlib import Path
 from typing import Union
+import warnings
 
 # Package imports
 import matplotlib.pyplot as plt
@@ -26,7 +27,7 @@ from tqdm.auto import tqdm
 
 pd.options.mode.chained_assignment = None  # default='warn'
 sns.set_theme()
-pio.renderers.default = "notebook"
+pio.renderers.default = "vscode"
 
 # %% Other functions
 
@@ -89,14 +90,13 @@ def line(error_y_mode=None, **kwargs):
 
 
 class autoXAS:
-    def __init__(self, metals=None, edges=None) -> None:
+    def __init__(self) -> None:
+        # Data parameters
         self.data_directory = None
-        self.data_type = ".dat"
+        self.data_format = ".dat"
         self.data = None
         self.raw_data = None
-        self.standards_directory = None
-        self.standards = None
-        self.raw_standards = None
+        self.standards_config = None
         self.experiments = None
         self.save_directory = "./"
         self.energy_column = None
@@ -104,16 +104,32 @@ class autoXAS:
         self.I1_columns = None
         self.temperature_column = None
         self.metals = None
-        self.xas_mode = "Flourescence"
+        self.edges = {}
+        self.xas_mode = "Fluorescence"
         self.energy_unit = "eV"
         self.energy_column_unitConversion = 1
         self.temperature_unit = "K"
         self.interactive = False
         self.edge_correction_energies = {}
-        if metals and edges:
-            self._calculate_edge_shift(metals, edges)
 
-    def save_config(self, config_name: str, save_directory: str = "./") -> None:
+        # Standards parameters
+        self.data_directory_standards = None
+        self.data_format_standards = ".dat"
+        self.standards = None
+        self.raw_standards = None
+        self.standard_experiments = None
+        self.energy_column_standards = None
+        self.I0_columns_standards = None
+        self.I1_columns_standards = None
+        self.temperature_column_standards = None
+        self.xas_mode_standards = "Fluorescence"
+        self.energy_unit_standards = "eV"
+        self.energy_column_unitConversion_standards = 1
+        self.temperature_unit_standards = "K"
+
+    def save_config(
+        self, config_name: str, save_directory: str = "./", standards: bool = False
+    ) -> None:
         """
         Save configuration file.
 
@@ -124,52 +140,127 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        config = dict(
-            data_directory=self.data_directory,
-            standards_directory=self.standards_directory,
-            data_type=self.data_type,
-            energy_column=self.energy_column,
-            I0_columns=self.I0_columns,
-            I1_columns=self.I1_columns,
-            temperature_column=self.temperature_column,
-            edge_correction=self.edge_correction,
-            xas_mode=self.xas_mode,
-            energy_unit=self.energy_unit,
-            energy_column_unitConversion=self.energy_column_unitConversion,
-            temperature_unit=self.temperature_unit,
-            save_directory=self.save_directory,
-        )
-        with open(save_directory + config_name, "w") as file:
-            yaml.dump(config, file)
+        if standards:
+            config = dict(
+                data_directory=self.data_directory_standards,
+                standards_config=self.standards_config,
+                data_format=self.data_format_standards,
+                energy_column=self.energy_column_standards,
+                I0_columns=self.I0_columns_standards,
+                I1_columns=self.I1_columns_standards,
+                temperature_column=self.temperature_column_standards,
+                edges=self.edges,
+                xas_mode=self.xas_mode_standards,
+                energy_unit=self.energy_unit_standards,
+                energy_column_unitConversion=self.energy_column_unitConversion_standards,
+                temperature_unit=self.temperature_unit_standards,
+                save_directory=self.save_directory_standards,
+            )
+            with open(save_directory + config_name + "_standards", "w") as file:
+                yaml.dump(config, file)
+        else:
+            config = dict(
+                data_directory=self.data_directory,
+                data_format=self.data_format,
+                energy_column=self.energy_column,
+                I0_columns=self.I0_columns,
+                I1_columns=self.I1_columns,
+                temperature_column=self.temperature_column,
+                edges=self.edges,
+                xas_mode=self.xas_mode,
+                energy_unit=self.energy_unit,
+                energy_column_unitConversion=self.energy_column_unitConversion,
+                temperature_unit=self.temperature_unit,
+                save_directory=self.save_directory,
+            )
+            with open(save_directory + config_name, "w") as file:
+                yaml.dump(config, file)
 
         return None
 
-    def load_config(self, config_name: str, directory: str = "./") -> None:
+    def load_config(self, configuration_file: str, standards: bool = False) -> None:
         """
         Load configuration file.
 
         Args:
-            config_name (str): Name of the configuration file.
-            directory (str, optional): Directory where the configuration file is located. Defaults to "./".
+            configuration_file (str): Path to the configuration file.
 
         Returns:
             None: Function does not return anything.
         """
-        with open(directory + config_name, "r") as file:
+
+        with open(configuration_file, "r") as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
-        self.data_directory = config["data_directory"]
-        self.standards_directory = config["standards_directory"]
-        self.data_type = config["data_type"]
-        self.energy_column = config["energy_column"]
-        self.I0_columns = config["I0_columns"]
-        self.I1_columns = config["I1_columns"]
-        self.temperature_column = config["temperature_column"]
-        self.edge_correction = config["edge_correction"]
-        self.xas_mode = config["xas_mode"]
-        self.energy_unit = config["energy_unit"]
-        self.energy_column_unitConversion = config["energy_column_unitConversion"]
-        self.temperature_unit = config["temperature_unit"]
-        self.save_directory = config["save_directory"]
+
+        if standards:
+            # Set configuration parameters if they exist
+            if "data_directory" in config:
+                self.data_directory_standards = config["data_directory"]
+            if "data_format" in config:
+                self.data_format_standards = config["data_format"]
+            if "energy_column" in config:
+                self.energy_column_standards = config["energy_column"]
+            if "I0_columns" in config:
+                self.I0_columns_standards = config["I0_columns"]
+            if "I1_columns" in config:
+                self.I1_columns_standards = config["I1_columns"]
+            if "temperature_column" in config:
+                self.temperature_column_standards = config["temperature_column"]
+            if "xas_mode" in config:
+                self.xas_mode_standards = config["xas_mode"]
+                if self.xas_mode_standards not in ["Fluorescence", "Transmission"]:
+                    raise ValueError("Invalid XAS mode")
+            if "energy_unit" in config:
+                self.energy_unit_standards = config["energy_unit"]
+            if "energy_column_unitConversion" in config:
+                self.energy_column_unitConversion_standards = config[
+                    "energy_column_unitConversion"
+                ]
+            if "temperature_unit" in config:
+                self.temperature_unit_standards = config["temperature_unit"]
+            if "save_directory" in config:
+                self.save_directory_standards = config["save_directory"]
+                if not Path(self.save_directory_standards).exists():
+                    Path(self.save_directory_standards).mkdir(
+                        parents=True, exist_ok=True
+                    )
+        else:
+            # Set configuration parameters if they exist
+            if "data_directory" in config:
+                self.data_directory = config["data_directory"]
+            if "data_format" in config:
+                self.data_format = config["data_format"]
+            if "energy_column" in config:
+                self.energy_column = config["energy_column"]
+            if "I0_columns" in config:
+                self.I0_columns = config["I0_columns"]
+            if "I1_columns" in config:
+                self.I1_columns = config["I1_columns"]
+            if "temperature_column" in config:
+                self.temperature_column = config["temperature_column"]
+            if "edges" in config:
+                self.edges = config["edges"]
+            if "edge_correction_energies" in config:
+                self.edge_correction_energies = config["edge_correction_energies"]
+            if "xas_mode" in config:
+                self.xas_mode = config["xas_mode"]
+                if self.xas_mode not in ["Fluorescence", "Transmission"]:
+                    raise ValueError("Invalid XAS mode")
+            if "energy_unit" in config:
+                self.energy_unit = config["energy_unit"]
+            if "energy_column_unitConversion" in config:
+                self.energy_column_unitConversion = config[
+                    "energy_column_unitConversion"
+                ]
+            if "temperature_unit" in config:
+                self.temperature_unit = config["temperature_unit"]
+            if "save_directory" in config:
+                self.save_directory = config["save_directory"]
+                if not Path(self.save_directory).exists():
+                    Path(self.save_directory).mkdir(parents=True, exist_ok=True)
+            if "standards_config" in config:
+                self.standards_config = config["standards_config"]
+                self.load_config(self.standards_config, standards=True)
         return None
 
     def _read_data(self, standards: bool = False) -> None:
@@ -187,15 +278,15 @@ class autoXAS:
             None: Function does not return anything.
         """
         if standards:
-            if self.standards_directory is None:
+            if self.data_directory_standards is None:
                 raise ValueError("No standards directory specified")
         else:
             if self.data_directory is None:
                 raise ValueError("No data directory specified")
 
-        if self.data_type == ".dat":
+        if self.data_format == ".dat":
             if standards:
-                data_files = list(Path(self.standards_directory).rglob("*.dat"))
+                data_files = list(Path(self.data_directory_standards).rglob("*.dat"))
             else:
                 data_files = list(Path(self.data_directory).rglob("*.dat"))
             for file in tqdm(data_files, desc="Reading data files", leave=False):
@@ -237,37 +328,72 @@ class autoXAS:
                         data["Metal"] = fragment
 
                 # Calculate energy
-                data["Energy"] = (
-                    raw_data[self.energy_column] * self.energy_column_unitConversion
-                )
+                if standards:
+                    data["Energy"] = (
+                        raw_data[self.energy_column_standards]
+                        * self.energy_column_unitConversion_standards
+                    )
+                else:
+                    data["Energy"] = (
+                        raw_data[self.energy_column] * self.energy_column_unitConversion
+                    )
 
                 # Calculate temperature
-                if self.temperature_column is not None:
+                if self.temperature_column is not None and not standards:
                     data["Temperature"] = raw_data[self.temperature_column]
+                elif self.temperature_column_standards is not None and standards:
+                    data["Temperature"] = raw_data[self.temperature_column_standards]
                 else:
                     data["Temperature"] = 0  # Placeholder for temperature
                 data["Temperature (std)"] = 0  # Placeholder for temperature std
 
-                # Calculate I0
-                if isinstance(self.I0_columns, list):
-                    data["I0"] = 0
-                    for column in self.I0_columns:
-                        data["I0"] += raw_data[column]
-                elif isinstance(self.I0_columns, str):
-                    data["I0"] = raw_data[self.I0_columns]
-                # Calculate I1
-                if isinstance(self.I1_columns, list):
-                    data["I1"] = 0
-                    for column in self.I1_columns:
-                        data["I1"] += raw_data[column]
-                elif isinstance(self.I1_columns, str):
-                    data["I1"] = raw_data[self.I1_columns]
+                # Get I0 and I1 columns
+                if standards:
+                    # Calculate I0
+                    if isinstance(self.I0_columns_standards, list):
+                        data["I0"] = 0
+                        for column in self.I0_columns_standards:
+                            data["I0"] += raw_data[column]
+                    elif isinstance(self.I0_columns_standards, str):
+                        data["I0"] = raw_data[self.I0_columns_standards]
+                    # Calculate I1
+                    if isinstance(self.I1_columns_standards, list):
+                        data["I1"] = 0
+                        for column in self.I1_columns_standards:
+                            data["I1"] += raw_data[column]
+                    elif isinstance(self.I1_columns_standards, str):
+                        data["I1"] = raw_data[self.I1_columns_standards]
+                else:
+                    # Calculate I0
+                    if isinstance(self.I0_columns, list):
+                        data["I0"] = 0
+                        for column in self.I0_columns:
+                            data["I0"] += raw_data[column]
+                    elif isinstance(self.I0_columns, str):
+                        data["I0"] = raw_data[self.I0_columns]
+                    # Calculate I1
+                    if isinstance(self.I1_columns, list):
+                        data["I1"] = 0
+                        for column in self.I1_columns:
+                            data["I1"] += raw_data[column]
+                    elif isinstance(self.I1_columns, str):
+                        data["I1"] = raw_data[self.I1_columns]
 
                 # Calculate absorption coefficient
-                if self.xas_mode == "Flourescence":
-                    data["mu"] = data["I1"] / data["I0"]
-                elif self.xas_mode == "Transmission":
-                    data["mu"] = np.log(data["I0"] / data["I1"])
+                if standards:
+                    if self.xas_mode_standards == "Fluorescence":
+                        data["mu"] = data["I1"] / data["I0"]
+                    elif self.xas_mode_standards == "Transmission":
+                        data["mu"] = np.log(data["I0"] / data["I1"])
+                    else:
+                        raise ValueError("Invalid XAS mode")
+                else:
+                    if self.xas_mode == "Fluorescence":
+                        data["mu"] = data["I1"] / data["I0"]
+                    elif self.xas_mode == "Transmission":
+                        data["mu"] = np.log(data["I0"] / data["I1"])
+                    else:
+                        raise ValueError("Invalid XAS mode")
 
                 # Remove data points with energy = 0
                 data = data[data["Energy"] != 0]
@@ -280,6 +406,63 @@ class autoXAS:
                         measurement_number += 1
                     measurement_number_values.append(int(measurement_number))
                 data["Measurement"] = measurement_number_values
+
+                # Ensure all measurements have the same number of data points
+                for metal in data["Metal"].unique():
+                    metal_filter = data["Metal"] == metal
+                    data_point_count = data["Measurement"][metal_filter].value_counts()
+                    if len(data_point_count) > 1:
+                        most_common_count = data_point_count.value_counts().idxmax()
+                        outlier_indices = data_point_count[
+                            data_point_count != most_common_count
+                        ].index
+                        # Deal with outliers
+                        for outlier_index in outlier_indices:
+                            if data_point_count[outlier_index] > most_common_count:
+                                # Remove data points from the end of the measurement
+                                data.drop(
+                                    data[
+                                        metal_filter
+                                        & (data["Measurement"] == outlier_index)
+                                    ].index[
+                                        -(
+                                            data_point_count[outlier_index]
+                                            - most_common_count
+                                        ) :
+                                    ],
+                                    inplace=True,
+                                )
+                                print(
+                                    f"Removed {data_point_count[outlier_index] - most_common_count} data points from the end of measurement {outlier_index} for {metal}."
+                                )
+                            elif data_point_count[outlier_index] < most_common_count:
+                                # Remove the measurement
+                                data.drop(
+                                    data[
+                                        metal_filter
+                                        & (data["Measurement"] == outlier_index)
+                                    ].index,
+                                    inplace=True,
+                                )
+                                print(
+                                    f"Removed measurement {outlier_index} for {metal} due to an unexpected low number of data points."
+                                )
+
+                # Calculate mean and standard deviation of temperature for each measurement
+                for metal in data["Metal"].unique():
+                    metal_filter = data["Metal"] == metal
+                    for measurement in data["Measurement"][metal_filter].unique():
+                        measurement_filter = (data["Metal"] == metal) & (
+                            data["Measurement"] == measurement
+                        )
+                        temperature_mean = data["Temperature"][
+                            measurement_filter
+                        ].mean()
+                        temperature_std = data["Temperature"][measurement_filter].std()
+                        data.loc[measurement_filter, "Temperature"] = temperature_mean
+                        data.loc[measurement_filter, "Temperature (std)"] = (
+                            temperature_std
+                        )
 
                 # Specify data types in specific columns
                 data = data.astype(
@@ -309,34 +492,44 @@ class autoXAS:
                     else:
                         self.data = pd.concat([self.data, data]).reset_index(drop=True)
 
-        elif self.data_type == ".h5":
+        elif self.data_format == ".h5":
             raise NotImplementedError("HDF5 file reading not implemented yet")
         return None
 
-    def _calculate_edge_shift(self, metals: list[str], edges: list[str]) -> None:
+    def _calculate_edge_shift(self, edges: dict, standards: bool = False) -> None:
         """
         Calculate the shift in edge energy for each metal and edge pair.
 
         Args:
-            metals (list[str]): List of metals.
-            edges (list[str]): List of edges.
+            edges (dict): Dictionary containing the metal and edge pairs.
+            standards (bool, optional): Whether to calculate edge shift for standards. Defaults to False.
 
         Returns:
             None: Function does not return anything.
         """
-        for metal, edge in zip(metals, edges):
-            edge_energy_table = xray_edge(metal, edge, energy_only=True)
-
-            measurement_filter = (self.data["Metal"] == metal) & (
-                self.data["Experiment"] == 1
-            )
-            edge_energy_measured = find_e0(
-                self.data["Energy"][measurement_filter],
-                self.data["mu"][measurement_filter],
-            )
-            self.edge_correction_energies[metal] = (
-                edge_energy_table - edge_energy_measured
-            )
+        dataframe = self.standards if standards else self.data
+        for metal, edge in tqdm(
+            edges.items(), desc="Calculating edge shifts", leave=False
+        ):
+            if self.edge_correction_energies.get(metal) is not None:
+                continue
+            else:
+                edge_energy_table = xray_edge(metal, edge, energy_only=True)
+                for measurement in range(1, dataframe["Measurement"].max() + 1):
+                    try:
+                        measurement_filter = (dataframe["Metal"] == metal) & (
+                            dataframe["Measurement"] == measurement
+                        )
+                        edge_energy_measured = find_e0(
+                            dataframe["Energy"][measurement_filter],
+                            dataframe["mu"][measurement_filter],
+                        )
+                        self.edge_correction_energies[metal] = (
+                            edge_energy_table - edge_energy_measured
+                        )
+                        break
+                    except:
+                        continue
         return None
 
     def _energy_correction(self, standards: bool = False) -> None:
@@ -649,6 +842,13 @@ class autoXAS:
         self._read_data()
         self.experiments = list(self.data["Experiment"].unique())
         self.metals = list(self.data["Metal"].unique())
+        self.excluded_data = {experiment: [] for experiment in self.experiments}
+        if (self.edges is not None) or (self.edges != {}):
+            if self.standards_config is not None:
+                warnings.warn(
+                    'Calculating the edge shift using the standards is recommended. Please load the standards using the "load_standards" method before calling "load_data".'
+                )
+            self._calculate_edge_shift(self.edges)
         self._energy_correction()
         if average:
             if average.lower() == "standard":
@@ -680,6 +880,8 @@ class autoXAS:
 
         self._read_data(standards=True)
         self.standard_experiments = list(self.standards["Experiment"].unique())
+        if (self.edges is not None) or (self.edges != {}):
+            self._calculate_edge_shift(self.edges, standards=True)
         self._energy_correction(standards=True)
         if average:
             if average.lower() == "standard":
@@ -729,6 +931,8 @@ class autoXAS:
                         & (self.data["Measurement"] == measurement)
                     )
                 ]
+                # Log excluded data
+                self.excluded_data[experiment].append(measurement)
         return None
 
     def _linear_combination(
@@ -783,8 +987,11 @@ class autoXAS:
     def LCA(
         self,
         use_standards: bool = False,
-        components: Union[list[int], list[str], None] = [0, -1],
+        components: Union[list[int], list[list[int]], None] = [0, -1],
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        standards_to_use: Union[
+            str, list[int], list[list[int]], list[list[str]]
+        ] = "all",
     ) -> None:
         """
         Perform Linear Combination Analysis (LCA) on the data.
@@ -793,11 +1000,11 @@ class autoXAS:
             use_standards (bool, optional): Whether to use standards for LCA. Defaults to False.
             components (Union[list[int], list[str], None], optional): Components to use for LCA. Defaults to [0, -1].
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            standards_to_use (Union[str, list[int]], optional): Standards to use for LCA. Defaults to "all".
 
         Raises:
             ValueError: No standards loaded.
             ValueError: Number of fit ranges must match number of metals.
-            NotImplementedError: LCA with standards not implemented yet.
             ValueError: At least 2 components are required to perform LCA.
 
         Returns:
@@ -854,6 +1061,44 @@ class autoXAS:
                             component_names.append(
                                 f"{standard_experiment} ({measurement})"
                             )
+                if isinstance(standards_to_use, list):
+                    if isinstance(standards_to_use[0], list):
+                        if len(standards_to_use) != len(self.experiments):
+                            raise ValueError(
+                                "Length of list must match number of experiments."
+                            )
+                        if isinstance(standards_to_use[i][0], int):
+                            for exp_standards_to_use in standards_to_use:
+                                component_names = [
+                                    component_names[i] for i in exp_standards_to_use
+                                ]
+                                component_measurements = [
+                                    component_measurements[i]
+                                    for i in exp_standards_to_use
+                                ]
+                        elif isinstance(standards_to_use[i][0], str):
+                            exp_standards_to_use = standards_to_use[i]
+                            component_measurements = [
+                                component_measurements[
+                                    component_names.index(standard_name)
+                                ]
+                                for standard_name in exp_standards_to_use
+                            ]
+                            component_names = exp_standards_to_use
+                    elif isinstance(standards_to_use[0], int):
+                        component_names = [component_names[i] for i in standards_to_use]
+                        component_measurements = [
+                            component_measurements[i] for i in standards_to_use
+                        ]
+                    else:
+                        raise ValueError(
+                            "Standards to use must be 'all' or a list of integers or strings."
+                        )
+                elif standards_to_use != "all":
+                    raise ValueError(
+                        "Standards to use must be 'all' or a list of integers or strings."
+                    )
+
                 n_components = len(component_measurements)
                 if n_components < 2:
                     raise ValueError(
@@ -870,12 +1115,28 @@ class autoXAS:
                         self.standards["mu_norm"][measurement_filter].to_numpy()
                     )
             else:
-                component_measurements = self.data["Measurement"][
-                    self.data["Metal"] == metal
-                ].unique()[components]
-                component_names = [
-                    f"Measurement {meas_num}" for meas_num in component_measurements
-                ]
+                if isinstance(components[0], int):
+                    component_measurements = self.data["Measurement"][
+                        self.data["Metal"] == metal
+                    ].unique()[components]
+                    component_names = [
+                        f"Measurement {meas_num}" for meas_num in component_measurements
+                    ]
+                elif isinstance(components[0], list):
+                    if len(components) != len(self.experiments):
+                        raise ValueError(
+                            "Length of list must match number of experiments."
+                        )
+                    component_measurements = self.data["Measurement"][
+                        self.data["Metal"] == metal
+                    ].unique()[components[i]]
+                    component_names = [
+                        f"Measurement {meas_num}" for meas_num in component_measurements
+                    ]
+                else:
+                    raise ValueError(
+                        "Components must be a list of integers or a list of lists of integers."
+                    )
                 n_components = len(component_measurements)
                 if n_components < 2:
                     raise ValueError(
@@ -976,6 +1237,7 @@ class autoXAS:
         self,
         n_components: Union[None, str, float, int, list] = None,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        max_components: int = 10,
         seed: Union[None, int] = None,
     ) -> None:
         """
@@ -984,6 +1246,7 @@ class autoXAS:
         Args:
             n_components (Union[None, str, float, int, list], optional): Number of components to keep or fraction of variance to be explained by components. Defaults to None.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            max_components (int, optional): Maximum number of components to use for automatic PCA component determination. Defaults to 10.
             seed (Union[None, int], optional): Random seed for reproducibility. Defaults to None.
 
         Raises:
@@ -1009,6 +1272,7 @@ class autoXAS:
         experiment_list = []
         metal_list = []
         measurement_list = []
+        temperature_list = []
         fit_range_list = []
         n_components_list = []
         pca_mean_list = []
@@ -1032,6 +1296,17 @@ class autoXAS:
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
+
+            temperatures = np.array(
+                [
+                    self.data["Temperature"][
+                        (self.data["Experiment"] == experiment)
+                        & (self.data["Measurement"] == measurement)
+                    ].unique()[0]
+                    for measurement in measurements
+                ]
+            )
+
             data = (
                 self.data["mu_norm"][
                     (self.data["Experiment"] == experiment) & fit_range_filter
@@ -1042,11 +1317,14 @@ class autoXAS:
 
             pca = PCA(n_components=n_components, random_state=seed)
             pca.fit(data)
+            if pca.n_components_ > max_components:
+                pca = PCA(n_components=max_components, random_state=seed)
+                pca.fit(data)
             pca_weights = pca.transform(data)
 
             # Store PCA results
             for j, component in enumerate(pca.components_):
-                for measurement in measurements:
+                for measurement, temperature in zip(measurements, temperatures):
                     experiment_list.append(experiment)
                     metal_list.append(
                         self.data["Metal"][
@@ -1054,6 +1332,7 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    temperature_list.append(temperature)
                     fit_range_list.append(fit_range[i])
                     n_components_list.append(pca.n_components_)
                     pca_mean_list.append(pca.mean_)
@@ -1072,13 +1351,16 @@ class autoXAS:
                     component_list.append(component)
                     component_names_list.append(f"PC {j+1}")
                     component_number_list.append(j + 1)
-                    weights_list.append(pca_weights[measurement - 1, j])
+                    weights_list.append(
+                        pca_weights[np.where(measurements == measurement)[0][0], j]
+                    )
 
         self.PCA_result = pd.DataFrame(
             {
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Temperature": temperature_list,
                 "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "PCA Mean": pca_mean_list,
@@ -1099,15 +1381,17 @@ class autoXAS:
         n_components: Union[None, str, float, int, list] = None,
         change_cutoff: float = 0.25,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        max_components: int = 10,
         seed: Union[None, int] = None,
     ) -> None:
         """
         Perform Non-negative Matrix Factorization (NMF) on the data.
 
         Args:
-            n_components (Union[None, str, float, int, list], optional): Number of components to keep. Defaults to None.
+            n_components (Union[None, str, float, int, list], optional): Number of components to use. Defaults to None.
             change_cutoff (float, optional): Minimum change in reconstruction error to determine number of components. Defaults to 0.25.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            max_components (int, optional): Maximum number of components to use for automatic NMF component determination. Defaults to 10.
             seed (Union[None, int], optional): Random seed for reproducibility. Defaults to None.
 
         Raises:
@@ -1121,7 +1405,9 @@ class autoXAS:
                 raise ValueError("Length of list must match number of experiments")
         elif n_components is None:
             n_components = self._determine_NMF_components(
-                change_cutoff=change_cutoff, fit_range=fit_range
+                change_cutoff=change_cutoff,
+                fit_range=fit_range,
+                max_components=max_components,
             )
         else:
             n_components = [n_components] * len(self.experiments)
@@ -1137,6 +1423,7 @@ class autoXAS:
         experiment_list = []
         metal_list = []
         measurement_list = []
+        temperature_list = []
         fit_range_list = []
         n_components_list = []
         energy_list = []
@@ -1156,6 +1443,17 @@ class autoXAS:
             measurements = self.data["Measurement"][
                 self.data["Experiment"] == experiment
             ].unique()
+
+            temperatures = np.array(
+                [
+                    self.data["Temperature"][
+                        (self.data["Experiment"] == experiment)
+                        & (self.data["Measurement"] == measurement)
+                    ].unique()[0]
+                    for measurement in measurements
+                ]
+            )
+
             data = (
                 self.data["mu_norm"][
                     (self.data["Experiment"] == experiment) & fit_range_filter
@@ -1164,7 +1462,7 @@ class autoXAS:
                 .reshape(len(measurements), -1)
             )
             # Remove negative values
-            data -= data.min()
+            data = np.clip(data, a_min=0, a_max=None)
 
             nmf = NMF(n_components=n_components, random_state=seed, init="nndsvda")
             nmf.fit(data)
@@ -1172,7 +1470,7 @@ class autoXAS:
 
             # Store NMF results
             for j, component in enumerate(nmf.components_):
-                for measurement in measurements:
+                for measurement, temperature in zip(measurements, temperatures):
                     experiment_list.append(experiment)
                     metal_list.append(
                         self.data["Metal"][
@@ -1180,6 +1478,7 @@ class autoXAS:
                         ].values[0]
                     )
                     measurement_list.append(measurement)
+                    temperature_list.append(temperature)
                     fit_range_list.append(fit_range[i])
                     n_components_list.append(nmf.n_components_)
                     energy_list.append(
@@ -1190,13 +1489,16 @@ class autoXAS:
                     component_list.append(component)
                     component_names_list.append(f"Component {j+1}")
                     component_number_list.append(j + 1)
-                    weights_list.append(nmf_weights[measurement - 1, j])
+                    weights_list.append(
+                        nmf_weights[np.where(measurements == measurement)[0][0], j]
+                    )
 
         self.NMF_result = pd.DataFrame(
             {
                 "Experiment": experiment_list,
                 "Metal": metal_list,
                 "Measurement": measurement_list,
+                "Temperature": temperature_list,
                 "Fit Range": fit_range_list,
                 "n_components": n_components_list,
                 "Energy": energy_list,
@@ -1213,6 +1515,7 @@ class autoXAS:
         self,
         change_cutoff: int,
         fit_range: Union[None, tuple[float, float], list[tuple[float, float]]] = None,
+        max_components: int = 10,
     ) -> list[int]:
         """
         Determine the number of components to use for Non-negative Matrix Factorization (NMF).
@@ -1220,6 +1523,7 @@ class autoXAS:
         Args:
             change_cutoff (int): Minimum change in reconstruction error to determine number of components.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
+            max_components (int, optional): Maximum number of components to use for automatic NMF component determination. Defaults to 10.
 
         Returns:
             list[int]: Number of components to use for NMF.
@@ -1257,7 +1561,7 @@ class autoXAS:
                 a_max=None,
             )
 
-            for n_components in range(len(measurements)):
+            for n_components in range(min(max_components, len(measurements))):
                 nmf = NMF(n_components=n_components + 1)
                 nmf.fit(data)
 
@@ -1303,6 +1607,7 @@ class autoXAS:
         filename: Union[None, str] = None,
         directory: Union[None, str] = None,
         columns: Union[str, list[str]] = None,
+        explode_columns: bool = True,
     ):
         """
         Export data to a CSV file.
@@ -1328,12 +1633,19 @@ class autoXAS:
             dataframe = self.standards
         elif data == "LCA":
             dataframe = self.LCA_result
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["Energy", "Component"])
         elif data == "PCA":
             dataframe = self.PCA_result
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["PCA Mean", "Energy", "Component"])
         elif data == "NMF":
             dataframe = self.NMF_result
-
-        # TODO: Unravel nested columns before saving
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["Energy", "Component"])
 
         dataframe.to_csv(directory + filename, index=False, columns=columns)
         return None
@@ -1361,19 +1673,23 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the normalized data for a given experiment.
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
-            standards (Union[None, list[str]], optional): Standards to plot. Defaults to None.
+            standards (Union[None, str, int], optional): Standards to plot. Defaults to None.
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "data".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1429,6 +1745,7 @@ class autoXAS:
                 ),
                 xhoverformat=x_formatting,
                 hovertemplate=hovertemplate,
+                # visible="legendonly",  # Used only for paper figure
             )
 
             if standards:
@@ -1458,7 +1775,8 @@ class autoXAS:
                             ),
                         )
                         i_standard += 1
-
+                # Place standard traces in front of data traces
+                fig.data = fig.data[-i_standard:] + fig.data[:-i_standard]
             # Specify title text
             if show_title:
                 title_text = f"<b>Normalized data<br><sup><i>{experiment}</i></sup></b>"
@@ -1470,15 +1788,30 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title="<b>Normalized [a.u.]</b>",
+                yaxis_title="<b>Normalized μ(E) [a.u.]</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1517,7 +1850,9 @@ class autoXAS:
             # Enforce matplotlibs tight layout
             plt.tight_layout()
             if save:
-                plt.savefig(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                plt.savefig(filepath)
 
             if show:
                 plt.show()
@@ -1530,6 +1865,8 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the temperature curves for all experiments.
@@ -1540,6 +1877,8 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -1588,13 +1927,28 @@ class autoXAS:
                 xaxis_title="<b>Measurement</b>",
                 yaxis_title=f"<b>Temperature [{self.temperature_unit}]</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1613,6 +1967,8 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot a waterfall plot for a given experiment.
@@ -1627,6 +1983,8 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1647,6 +2005,13 @@ class autoXAS:
             index=y_axis, columns="Energy", values="mu_norm"
         )
 
+        if y_axis == "Temperature":
+            y_unit = self.temperature_unit
+            y_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            y_unit = ""
+            y_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".2f"
@@ -1659,7 +2024,7 @@ class autoXAS:
                 origin="lower",
                 color_continuous_scale="viridis",
                 aspect="auto",
-                labels=dict(color="<b>Normalized [a.u.]</b>"),
+                labels=dict(color="<b>Normalized μ(E) [a.u.]</b>"),
             )
 
             # Specify title text
@@ -1675,27 +2040,44 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title=f"<b>{y_axis}</b>",
+                yaxis_title=f"<b>{y_axis} {y_axis_unit}</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode="closest",
                 coloraxis=dict(
                     colorbar=dict(
-                        titleside="right",
+                        title=dict(
+                            side="right",
+                        )
                     ),
                 ),
             )
 
-            hovertemplate = f"Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>Normalized: %{{z:.2f}}<extra></extra>"
+            hovertemplate = f"{y_axis}: %{{y}} {y_unit}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>Normalized: %{{z:.2f}}<extra></extra>"
             fig.update_traces(hovertemplate=hovertemplate)
 
             # Add and format spikes
             fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1715,6 +2097,8 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the change in normalized data for a given experiment
@@ -1730,6 +2114,8 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1761,6 +2147,13 @@ class autoXAS:
             index=y_axis, columns="Energy", values="Difference from reference"
         )
 
+        if y_axis == "Temperature":
+            y_unit = self.temperature_unit
+            y_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            y_unit = ""
+            y_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".2f"
@@ -1774,7 +2167,7 @@ class autoXAS:
                 color_continuous_scale="RdBu_r",
                 color_continuous_midpoint=0.0,
                 aspect="auto",
-                labels=dict(color="<b>\u0394 Normalized [a.u.]</b>"),
+                labels=dict(color="<b>\u0394 Normalized μ(E) [a.u.]</b>"),
             )
 
             fig.add_hline(
@@ -1785,7 +2178,7 @@ class autoXAS:
                 annotation_position="top left",
                 annotation_font=dict(
                     color="black",
-                    size=11,
+                    size=font_size * 0.9,
                 ),
             )
 
@@ -1802,27 +2195,44 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title=f"<b>{y_axis}</b>",
+                yaxis_title=f"<b>{y_axis} {y_axis_unit}</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode="closest",
                 coloraxis=dict(
                     colorbar=dict(
-                        titleside="right",
+                        title=dict(
+                            side="right",
+                        )
                     ),
                 ),
             )
 
-            hovertemplate = f"Measurement: %{{y}}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>\u0394 Normalized: %{{z:.2f}}<extra></extra>"
+            hovertemplate = f"{y_axis}: %{{y}} {y_unit}<br>Energy: %{{x:{x_formatting}}} {self.energy_unit}<br>\u0394 Normalized: %{{z:.2f}}<extra></extra>"
             fig.update_traces(hovertemplate=hovertemplate)
 
             # Add and format spikes
             fig.update_xaxes(showspikes=True, spikecolor="red", spikethickness=-2)
             fig.update_yaxes(showspikes=True, spikecolor="red", spikethickness=-2)
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1833,24 +2243,30 @@ class autoXAS:
     def plot_LCA(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "LCA",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the results of Linear Combination Analysis (LCA) for a given experiment.
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "LCA".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -1867,6 +2283,13 @@ class autoXAS:
 
         experiment_filter = self.LCA_result["Experiment"] == experiment
 
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -1877,12 +2300,10 @@ class autoXAS:
 
             # Plot the measurements of the selected experiment/edge
             df_data = self.LCA_result[experiment_filter]
-            # df_data["Clipped Parameter Error"] = df_data["Parameter Error"].clip(
-            #     upper=1
-            # )
+
             fig = line(
                 data_frame=df_data,
-                x="Measurement",
+                x=x_axis,
                 y="Parameter Value",
                 error_y="Parameter Error",
                 error_y_mode="band",
@@ -1916,16 +2337,31 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 yaxis_range=[-0.5, 1.5],
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -1945,6 +2381,8 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot a single frame of the Linear Combination Analysis (LCA) for a given experiment.
@@ -1958,6 +2396,8 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2104,15 +2544,30 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title="<b>Normalized [a.u.]</b>",
+                yaxis_title="<b>Normalized μ(E) [a.u.]</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2124,24 +2579,30 @@ class autoXAS:
     def plot_LCA_comparison(
         self,
         component: int = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "LCA_comparison",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot comparison of Linear Combination Analysis (LCA) components across experiments.
 
         Args:
             component (int): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "LCA_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -2149,6 +2610,13 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
+
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
 
         if self.interactive:
             # Formatting for hover text
@@ -2163,7 +2631,7 @@ class autoXAS:
                 data_frame=self.LCA_result[
                     self.LCA_result["Parameter Name"] == f"w{component}"
                 ],
-                x="Measurement",
+                x=x_axis,
                 y="Parameter Value",
                 error_y="Parameter Error",
                 error_y_mode="band",
@@ -2192,16 +2660,31 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 yaxis_range=[-0.5, 1.5],
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2213,24 +2696,30 @@ class autoXAS:
     def plot_PCA(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "PCA",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the results of Principal Component Analysis (PCA) for a given experiment.
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "PCA".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2247,6 +2736,13 @@ class autoXAS:
 
         experiment_filter = self.PCA_result["Experiment"] == experiment
 
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2256,7 +2752,7 @@ class autoXAS:
             # Plot the measurements of the selected experiment/edge
             fig = px.line(
                 data_frame=self.PCA_result[experiment_filter],
-                x="Measurement",
+                x=x_axis,
                 y="Weight",
                 color="Component Name",
                 color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
@@ -2282,16 +2778,31 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2310,6 +2821,8 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot a single frame of the Principal Component Analysis (PCA) for a given experiment
@@ -2323,6 +2836,8 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2477,15 +2992,30 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title="<b>Normalized [a.u.]</b>",
+                yaxis_title="<b>Normalized μ(E) [a.u.]</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2496,24 +3026,30 @@ class autoXAS:
     def plot_PCA_comparison(
         self,
         component: Union[int, list[int]] = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "PCA_comparison",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot comparison of Principal Component Analysis (PCA) components across experiments.
 
         Args:
             component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "PCA_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Length of list must match number of experiments.
@@ -2528,6 +3064,13 @@ class autoXAS:
                 raise ValueError("Length of list must match number of experiments")
         else:
             component = [component] * len(self.experiments)
+
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
 
         if self.interactive:
             # Formatting for hover text
@@ -2545,7 +3088,7 @@ class autoXAS:
 
                 fig.add_trace(
                     go.Scatter(
-                        x=self.PCA_result["Measurement"][data_filter],
+                        x=self.PCA_result[x_axis][data_filter],
                         y=self.PCA_result["Weight"][data_filter],
                         name=self.PCA_result["Metal"][data_filter].values[0]
                         + f" (PC {component[i]})",
@@ -2575,16 +3118,31 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2606,6 +3164,8 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2%",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the explained variance of Principal Component Analysis (PCA) for all experiments.
@@ -2621,6 +3181,8 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2%".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid plot type.
@@ -2771,7 +3333,7 @@ class autoXAS:
                         annotation_position="bottom right",
                         annotation_font=dict(
                             color="black",
-                            size=12,
+                            size=font_size * 0.8,
                         ),
                     )
 
@@ -2791,7 +3353,8 @@ class autoXAS:
                 xaxis_title=xaxis_title,
                 yaxis_title=yaxis_title,
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
                 yaxis=dict(
@@ -2799,8 +3362,22 @@ class autoXAS:
                 ),
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2813,24 +3390,30 @@ class autoXAS:
     def plot_NMF(
         self,
         experiment: Union[str, int] = 0,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "NMF",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot the results of Non-negative Matrix Factorization (NMF) for a given experiment.
 
         Args:
             experiment (Union[str, int]): Experiment to plot. Defaults to 0.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "NMF".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -2847,6 +3430,13 @@ class autoXAS:
 
         experiment_filter = self.NMF_result["Experiment"] == experiment
 
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
+
         if self.interactive:
             # Formatting for hover text
             x_formatting = ".0f"
@@ -2856,7 +3446,7 @@ class autoXAS:
             # Plot the measurements of the selected experiment/edge
             fig = px.line(
                 data_frame=self.NMF_result[experiment_filter],
-                x="Measurement",
+                x=x_axis,
                 y="Weight",
                 color="Component Name",
                 color_discrete_sequence=sns.color_palette("colorblind").as_hex(),
@@ -2882,16 +3472,31 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -2911,6 +3516,8 @@ class autoXAS:
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot a single frame of the Non-negative Matrix Factorization (NMF) for a given experiment.
@@ -2924,6 +3531,8 @@ class autoXAS:
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Invalid experiment name.
@@ -3064,15 +3673,30 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
-                yaxis_title="<b>Normalized [a.u.]</b>",
+                yaxis_title="<b>Normalized μ(E) [a.u.]</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3085,24 +3709,30 @@ class autoXAS:
     def plot_NMF_comparison(
         self,
         component: Union[int, list[int]] = 1,
+        x_axis: str = "Measurement",
         save: bool = False,
         filename: str = "NMF_comparison",
         format: str = ".png",
         show: bool = True,
         hover_format: str = ".2f",
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
         Plot comparison of Non-negative Matrix Factorization (NMF) components across experiments.
 
         Args:
             component (Union[int, list[int]]): Components to compare. Defaults to 1.
+            x_axis (str, optional): Column to use as X-axis in the plot. Defaults to "Measurement".
             save (bool, optional): Whether to save the plot. Defaults to False.
             filename (str, optional): Name of the file to save. Defaults to "NMF_comparison".
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             hover_format (str, optional): Format of numbers in the hover text. Defaults to ".2f".
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             ValueError: Length of list must match number of experiments.
@@ -3117,6 +3747,13 @@ class autoXAS:
                 raise ValueError("Length of list must match number of experiments")
         else:
             component = [component] * len(self.experiments)
+
+        if x_axis == "Temperature":
+            x_unit = self.temperature_unit
+            x_axis_unit = f"[{self.temperature_unit}]"
+        else:
+            x_unit = ""
+            x_axis_unit = ""
 
         if self.interactive:
             # Formatting for hover text
@@ -3134,7 +3771,7 @@ class autoXAS:
 
                 fig.add_trace(
                     go.Scatter(
-                        x=self.NMF_result["Measurement"][data_filter],
+                        x=self.NMF_result[x_axis][data_filter],
                         y=self.NMF_result["Weight"][data_filter],
                         name=self.NMF_result["Metal"][data_filter].values[0]
                         + f" (Component {component[i]})",
@@ -3164,16 +3801,31 @@ class autoXAS:
             fig.update_layout(
                 title=title_text,
                 title_x=0.5,
-                xaxis_title="<b>Measurement</b>",
+                xaxis_title=f"<b>{x_axis} {x_axis_unit}</b>",
                 yaxis_title=f"<b>Weight</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
@@ -3183,7 +3835,7 @@ class autoXAS:
 
         return None
 
-    def plot_NMF_error_change(
+    def plot_NMF_error_gradient(
         self,
         change_cutoff: float = 0.25,
         save: bool = False,
@@ -3191,9 +3843,11 @@ class autoXAS:
         format: str = ".png",
         show: bool = True,
         show_title: bool = True,
+        figure_size: Union[tuple[int, int], str] = "auto",
+        font_size: int = 14,
     ):
         """
-        Plot the change in error of Non-negative Matrix Factorization (NMF) as a function of number of components.
+        Plot the gradient of reconstruction error of Non-negative Matrix Factorization (NMF) as a function of number of components.
 
         Args:
             change_cutoff (float, optional): Error change cutoff to plot. Defaults to 0.25.
@@ -3202,6 +3856,8 @@ class autoXAS:
             format (str, optional): Format of the file to save. Defaults to ".png".
             show (bool, optional): Whether to show the plot. Defaults to True.
             show_title (bool, optional): Whether to show the title. Defaults to True.
+            figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
+            font_size (int, optional): Size of the font. Defaults to 14.
 
         Raises:
             NotImplementedError: Matplotlib plot not implemented yet.
@@ -3231,10 +3887,10 @@ class autoXAS:
                 line_width=2,
                 line_dash="dash",
                 annotation_text=f"<b>{change_cutoff:.2f}</b>",
-                annotation_position="bottom right",
+                annotation_position="top right",
                 annotation_font=dict(
                     color="black",
-                    size=12,
+                    size=font_size * 0.8,
                 ),
             )
 
@@ -3249,7 +3905,7 @@ class autoXAS:
 
             # Specify title text
             if show_title:
-                title_text = f"<b>NMF Error Change</b>"
+                title_text = f"<b>NMF Error Gradient</b>"
             else:
                 title_text = ""
 
@@ -3258,15 +3914,30 @@ class autoXAS:
                 title=title_text,
                 title_x=0.5,
                 xaxis_title="<b>Number of NMF components</b>",
-                yaxis_title="<b>\u0394 Error</b>",
+                yaxis_title="<b>Error gradient</b>",
                 font=dict(
-                    size=14,
+                    family="Arial",
+                    size=font_size,
                 ),
                 hovermode=hovermode,
             )
 
+            # Set figure size
+            if figure_size == "auto":
+                fig.update_layout(
+                    autosize=True,
+                )
+            else:
+                fig.update_layout(
+                    autosize=False,
+                    width=figure_size[0],
+                    height=figure_size[1],
+                )
+
             if save:
-                fig.write_image(self.save_directory + "figures/" + filename + format)
+                filepath = self.save_directory + filename + format
+                print(f"Saving plot to {filepath}")
+                fig.write_image(filepath)
 
             if show:
                 fig.show()
