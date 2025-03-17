@@ -4,6 +4,7 @@
 # Standard library imports
 from pathlib import Path
 from typing import Union
+import warnings
 
 # Package imports
 import matplotlib.pyplot as plt
@@ -103,7 +104,7 @@ class autoXAS:
         self.I1_columns = None
         self.temperature_column = None
         self.metals = None
-        self.edges = None
+        self.edges = {}
         self.xas_mode = "Fluorescence"
         self.energy_unit = "eV"
         self.energy_column_unitConversion = 1
@@ -121,13 +122,10 @@ class autoXAS:
         self.I0_columns_standards = None
         self.I1_columns_standards = None
         self.temperature_column_standards = None
-        self.metals_standards = None
-        self.edges_standards = None
         self.xas_mode_standards = "Fluorescence"
         self.energy_unit_standards = "eV"
         self.energy_column_unitConversion_standards = 1
         self.temperature_unit_standards = "K"
-        self.edge_correction_energies_standards = {}
 
     def save_config(
         self, config_name: str, save_directory: str = "./", standards: bool = False
@@ -151,8 +149,7 @@ class autoXAS:
                 I0_columns=self.I0_columns_standards,
                 I1_columns=self.I1_columns_standards,
                 temperature_column=self.temperature_column_standards,
-                metals=self.metals_standards,
-                edges=self.edges_standards,
+                edges=self.edges,
                 xas_mode=self.xas_mode_standards,
                 energy_unit=self.energy_unit_standards,
                 energy_column_unitConversion=self.energy_column_unitConversion_standards,
@@ -169,7 +166,6 @@ class autoXAS:
                 I0_columns=self.I0_columns,
                 I1_columns=self.I1_columns,
                 temperature_column=self.temperature_column,
-                metals=self.metals,
                 edges=self.edges,
                 xas_mode=self.xas_mode,
                 energy_unit=self.energy_unit,
@@ -182,21 +178,18 @@ class autoXAS:
 
         return None
 
-    def load_config(
-        self, config_name: str, directory: str = "./", standards: bool = False
-    ) -> None:
+    def load_config(self, configuration_file: str, standards: bool = False) -> None:
         """
         Load configuration file.
 
         Args:
-            config_name (str): Name of the configuration file.
-            directory (str, optional): Directory where the configuration file is located. Defaults to "./".
+            configuration_file (str): Path to the configuration file.
 
         Returns:
             None: Function does not return anything.
         """
 
-        with open(directory + config_name, "r") as file:
+        with open(configuration_file, "r") as file:
             config = yaml.load(file, Loader=yaml.FullLoader)
 
         if standards:
@@ -213,10 +206,6 @@ class autoXAS:
                 self.I1_columns_standards = config["I1_columns"]
             if "temperature_column" in config:
                 self.temperature_column_standards = config["temperature_column"]
-            if "metals" in config:
-                self.metals_standards = config["metals"]
-            if "edges" in config:
-                self.edges_standards = config["edges"]
             if "xas_mode" in config:
                 self.xas_mode_standards = config["xas_mode"]
                 if self.xas_mode_standards not in ["Fluorescence", "Transmission"]:
@@ -249,10 +238,10 @@ class autoXAS:
                 self.I1_columns = config["I1_columns"]
             if "temperature_column" in config:
                 self.temperature_column = config["temperature_column"]
-            if "metals" in config:
-                self.metals = config["metals"]
             if "edges" in config:
                 self.edges = config["edges"]
+            if "edge_correction_energies" in config:
+                self.edge_correction_energies = config["edge_correction_energies"]
             if "xas_mode" in config:
                 self.xas_mode = config["xas_mode"]
                 if self.xas_mode not in ["Fluorescence", "Transmission"]:
@@ -271,7 +260,7 @@ class autoXAS:
                     Path(self.save_directory).mkdir(parents=True, exist_ok=True)
             if "standards_config" in config:
                 self.standards_config = config["standards_config"]
-                self.load_config(self.standards_config, directory, standards=True)
+                self.load_config(self.standards_config, standards=True)
         return None
 
     def _read_data(self, standards: bool = False) -> None:
@@ -507,34 +496,40 @@ class autoXAS:
             raise NotImplementedError("HDF5 file reading not implemented yet")
         return None
 
-    def _calculate_edge_shift(self, metals: list[str], edges: list[str]) -> None:
+    def _calculate_edge_shift(self, edges: dict, standards: bool = False) -> None:
         """
         Calculate the shift in edge energy for each metal and edge pair.
 
         Args:
-            metals (list[str]): List of metals.
-            edges (list[str]): List of edges.
+            edges (dict): Dictionary containing the metal and edge pairs.
+            standards (bool, optional): Whether to calculate edge shift for standards. Defaults to False.
 
         Returns:
             None: Function does not return anything.
         """
-        for metal, edge in zip(metals, edges):
-            edge_energy_table = xray_edge(metal, edge, energy_only=True)
-            for measurement in range(1, self.data["Measurement"].max() + 1):
-                try:
-                    measurement_filter = (self.data["Metal"] == metal) & (
-                        self.data["Measurement"] == measurement
-                    )
-                    edge_energy_measured = find_e0(
-                        self.data["Energy"][measurement_filter],
-                        self.data["mu"][measurement_filter],
-                    )
-                    self.edge_correction_energies[metal] = (
-                        edge_energy_table - edge_energy_measured
-                    )
-                    break
-                except:
-                    continue
+        dataframe = self.standards if standards else self.data
+        for metal, edge in tqdm(
+            edges.items(), desc="Calculating edge shifts", leave=False
+        ):
+            if self.edge_correction_energies.get(metal) is not None:
+                continue
+            else:
+                edge_energy_table = xray_edge(metal, edge, energy_only=True)
+                for measurement in range(1, dataframe["Measurement"].max() + 1):
+                    try:
+                        measurement_filter = (dataframe["Metal"] == metal) & (
+                            dataframe["Measurement"] == measurement
+                        )
+                        edge_energy_measured = find_e0(
+                            dataframe["Energy"][measurement_filter],
+                            dataframe["mu"][measurement_filter],
+                        )
+                        self.edge_correction_energies[metal] = (
+                            edge_energy_table - edge_energy_measured
+                        )
+                        break
+                    except:
+                        continue
         return None
 
     def _energy_correction(self, standards: bool = False) -> None:
@@ -848,8 +843,12 @@ class autoXAS:
         self.experiments = list(self.data["Experiment"].unique())
         self.metals = list(self.data["Metal"].unique())
         self.excluded_data = {experiment: [] for experiment in self.experiments}
-        if self.edges is not None:
-            self._calculate_edge_shift(self.metals, self.edges)
+        if (self.edges is not None) or (self.edges != {}):
+            if self.standards_config is not None:
+                warnings.warn(
+                    'Calculating the edge shift using the standards is recommended. Please load the standards using the "load_standards" method before calling "load_data".'
+                )
+            self._calculate_edge_shift(self.edges)
         self._energy_correction()
         if average:
             if average.lower() == "standard":
@@ -881,6 +880,8 @@ class autoXAS:
 
         self._read_data(standards=True)
         self.standard_experiments = list(self.standards["Experiment"].unique())
+        if (self.edges is not None) or (self.edges != {}):
+            self._calculate_edge_shift(self.edges, standards=True)
         self._energy_correction(standards=True)
         if average:
             if average.lower() == "standard":
@@ -1387,7 +1388,7 @@ class autoXAS:
         Perform Non-negative Matrix Factorization (NMF) on the data.
 
         Args:
-            n_components (Union[None, str, float, int, list], optional): Number of components to keep. Defaults to None.
+            n_components (Union[None, str, float, int, list], optional): Number of components to use. Defaults to None.
             change_cutoff (float, optional): Minimum change in reconstruction error to determine number of components. Defaults to 0.25.
             fit_range (Union[None, tuple[float, float], list[tuple[float, float]]], optional): Energy range to use for fitting. Defaults to None.
             max_components (int, optional): Maximum number of components to use for automatic NMF component determination. Defaults to 10.
@@ -1461,7 +1462,7 @@ class autoXAS:
                 .reshape(len(measurements), -1)
             )
             # Remove negative values
-            data -= data.min()
+            data = np.clip(data, a_min=0, a_max=None)
 
             nmf = NMF(n_components=n_components, random_state=seed, init="nndsvda")
             nmf.fit(data)
@@ -1606,6 +1607,7 @@ class autoXAS:
         filename: Union[None, str] = None,
         directory: Union[None, str] = None,
         columns: Union[str, list[str]] = None,
+        explode_columns: bool = True,
     ):
         """
         Export data to a CSV file.
@@ -1631,16 +1633,19 @@ class autoXAS:
             dataframe = self.standards
         elif data == "LCA":
             dataframe = self.LCA_result
-            # Explode data in list columns
-            dataframe = dataframe.explode(["Energy", "Component"])
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["Energy", "Component"])
         elif data == "PCA":
             dataframe = self.PCA_result
-            # Explode data in list columns
-            dataframe = dataframe.explode(["PCA Mean", "Energy", "Component"])
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["PCA Mean", "Energy", "Component"])
         elif data == "NMF":
             dataframe = self.NMF_result
-            # Explode data in list columns
-            dataframe = dataframe.explode(["Energy", "Component"])
+            if explode_columns:
+                # Explode data in list columns
+                dataframe = dataframe.explode(["Energy", "Component"])
 
         dataframe.to_csv(directory + filename, index=False, columns=columns)
         return None
