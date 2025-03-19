@@ -208,7 +208,11 @@ class autoXAS:
                 self.temperature_column_standards = config["temperature_column"]
             if "xas_mode" in config:
                 self.xas_mode_standards = config["xas_mode"]
-                if self.xas_mode_standards not in ["Fluorescence", "Transmission"]:
+                if self.xas_mode_standards not in [
+                    "Fluorescence",
+                    "Transmission",
+                    "Pre-calculated",
+                ]:
                     raise ValueError("Invalid XAS mode")
             if "energy_unit" in config:
                 self.energy_unit_standards = config["energy_unit"]
@@ -244,7 +248,11 @@ class autoXAS:
                 self.edge_correction_energies = config["edge_correction_energies"]
             if "xas_mode" in config:
                 self.xas_mode = config["xas_mode"]
-                if self.xas_mode not in ["Fluorescence", "Transmission"]:
+                if self.xas_mode not in [
+                    "Fluorescence",
+                    "Transmission",
+                    "Pre-calculated",
+                ]:
                     raise ValueError("Invalid XAS mode")
             if "energy_unit" in config:
                 self.energy_unit = config["energy_unit"]
@@ -385,6 +393,8 @@ class autoXAS:
                         data["mu"] = data["I1"] / data["I0"]
                     elif self.xas_mode_standards == "Transmission":
                         data["mu"] = np.log(data["I0"] / data["I1"])
+                    elif self.xas_mode_standards == "Pre-calculated":
+                        data["mu"] = raw_data["mu"]
                     else:
                         raise ValueError("Invalid XAS mode")
                 else:
@@ -392,6 +402,8 @@ class autoXAS:
                         data["mu"] = data["I1"] / data["I0"]
                     elif self.xas_mode == "Transmission":
                         data["mu"] = np.log(data["I0"] / data["I1"])
+                    elif self.xas_mode == "Pre-calculated":
+                        data["mu"] = raw_data["mu"]
                     else:
                         raise ValueError("Invalid XAS mode")
 
