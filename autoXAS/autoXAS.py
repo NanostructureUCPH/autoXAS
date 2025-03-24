@@ -1055,6 +1055,10 @@ class autoXAS:
             )
 
             if use_standards:
+                fit_range_filter_standards = (
+                    self.standards["Energy"] >= fit_range[i][0]
+                ) & (self.standards["Energy"] <= fit_range[i][1])
+
                 component_measurements = []
                 component_names = []
                 for standard_experiment in self.standards["Experiment"][
@@ -1121,7 +1125,7 @@ class autoXAS:
                     measurement_filter = (
                         (self.standards["Experiment"] == standard_name)
                         & (self.standards["Measurement"] == measurement)
-                        & fit_range_filter
+                        & fit_range_filter_standards
                     )
                     components_mu.append(
                         self.standards["mu_norm"][measurement_filter].to_numpy()
@@ -1176,13 +1180,13 @@ class autoXAS:
                 target = self.data["mu_norm"][measurement_filter].to_numpy()
 
                 weights = Parameters()
-                for i in range(1, n_components):
-                    weights.add(f"w{i}", value=1 / n_components, min=0, max=1)
+                for j in range(1, n_components):
+                    weights.add(f"w{j}", value=1 / n_components, min=0, max=1)
                 weights.add(
                     f"w{n_components}",
                     min=0,
                     max=1,
-                    expr="1 - " + " - ".join([f"w{i}" for i in range(1, n_components)]),
+                    expr="1 - " + " - ".join([f"w{j}" for j in range(1, n_components)]),
                 )
 
                 fit_output = minimize(
