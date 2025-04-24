@@ -2,7 +2,7 @@ name: Publish to PyPI and TestPyPI
 
 on:
   release: 
-    types: [released]  # Trigger on release
+    types: [published]  # Trigger on release published event
   workflow_dispatch:  # Allow manual trigger
     inputs:
       task:
@@ -42,23 +42,27 @@ jobs:
     strategy: 
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]  # Specify the OS versions you want to build wheels for
-        python-version: ["37", "38", "39", "310", "311", "312"]  # Specify the Python versions you want to build wheels for
+        python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]  # Specify the Python versions you want to build wheels for
     runs-on: ${{ matrix.os }}
     steps: 
       - name: Check out the repository
         uses: actions/checkout@v4
 
-      - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.2
-        env:
-          CIBW_BUILD: cp${{ matrix.python-version }}-*  # Build for all platforms
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}  # Use the Python version from the matrix
 
-      - name: Save artifacts
+      - name: Build wheels
+        run: |
+          python -m pip install build
+          python -m build --wheel
+
+      - name: Store wheel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.os }}-${{ matrix.python-version }}
-          path: ./wheelhouse/*.whl  # Upload the built wheels
-
+          name: dist-${{ matrix.python-version }}-${{ matrix.os }}
+          path: dist/
   release:
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
