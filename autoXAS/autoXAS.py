@@ -285,6 +285,7 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
+        # TODO: Supporting potential steps as an alternative to time steps. They will most likely come as seperate files instead of the single files for time steps.
         if standards:
             if self.data_directory_standards is None:
                 raise ValueError("No standards directory specified")
