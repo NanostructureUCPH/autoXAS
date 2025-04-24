@@ -35,7 +35,7 @@ jobs:
     name: Build wheels
     strategy: 
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]  # Specify the OS versions you want to build wheels for
+        os: [ubuntu-22.04, macos-13, windows-latest]  # Specify the OS versions you want to build wheels for
         python-version: ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]  # Specify the Python versions you want to build wheels for
       fail-fast: false  # Continue building other jobs even if one fails
       max-parallel: 3  # Limit the number of parallel jobs to 3
