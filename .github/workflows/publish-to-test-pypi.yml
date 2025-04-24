@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read  # Required for reading the repository contents
+  id-token: write  # Required for trusted publishing
 
 jobs:
   build_sdist:
@@ -88,3 +89,4 @@ jobs:
       with:
         skip-existing: true
         verbose: true
+        repository-url: https://test.pypi.org/legacy/
