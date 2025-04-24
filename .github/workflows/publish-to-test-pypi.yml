@@ -1,9 +1,9 @@
-name: Publish to PyPI
+name: Publish to TestPyPI
 
 on:
   release: 
-    types: [released]  # Trigger on release published event
-
+    types: [prereleased]  # Trigger on release published event
+    
 
 permissions:
   contents: read  # Required for reading the repository contents
@@ -57,12 +57,13 @@ jobs:
         with:
           name: dist-${{ matrix.python-version }}-${{ matrix.os }}
           path: dist/
-  release:
+
+  test-release:
     needs: [build_sdist, build_wheels]
     runs-on: ubuntu-latest
     environment:
-      name: pypi
-      url: https://pypi.org/p/autoXAS 
+      name: testpypi
+      url: https://test.pypi.org/p/autoXAS
     permissions:
       id-token: write  # Mandatory for trusted publishing
     steps:
