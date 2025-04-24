@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "autoXAS"
-version = "0.0.2"
+dynamic = ["version"]
 description = "A package for automating the data processing involved in the analysis of (in-situ) X-ray absorption spectroscopy data."
 authors = [
     { name = "Ulrik Friis-Jensen", email = "ufj@chem.ku.dk" },
