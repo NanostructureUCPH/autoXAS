@@ -2,7 +2,7 @@ name: Publish to PyPI and TestPyPI
 
 on:
   release: 
-    types: [published]  # Trigger on release publication
+    types: [released]  # Trigger on release
   workflow_dispatch:  # Allow manual trigger
     inputs:
       task:
