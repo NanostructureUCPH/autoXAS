@@ -57,7 +57,7 @@ jobs:
       - name: Store wheel artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: dist-${{ matrix.python-version }}-${{ matrix.os }}
+          name: dist-py${{ matrix.python-version }}-${{ matrix.os }}
           path: dist/
   release:
     needs: [build_sdist, build_wheels]
@@ -80,7 +80,7 @@ jobs:
         merge-multiple: true  
         path: dist/  
 
-    - name: Publish to PyPI or TestPyPI
+    - name: Publish to PyPI
       uses: pypa/gh-action-pypi-publish@release/v1
       with:
         skip-existing: true
