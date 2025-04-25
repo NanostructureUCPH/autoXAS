@@ -1,4 +1,4 @@
-![autoXAS_logo](./figures/autoXAS_logo.svg)
+![autoXAS_logo](https://github.com/UlrikFriisJensen/autoXAS/raw/main/figures/autoXAS_logo.svg)
 # Automated analysis of X-ray Absorption Spectroscopy (XAS) data
 
 
@@ -10,6 +10,7 @@
 2. [Usage](#using-autoxas)
 3. [Cite](#cite)
 4. [Contributing to autoXAS](#contributing-to-autoxas)
+    1. [Issues and featire requests](#issues-and-feature-requests)
 
 ## Installation
 
@@ -52,7 +53,20 @@ pip install .
 
 If you use the autoXAS package, please cite our paper:
 ```
-Insert citation here.
+Paper in preperation.
 ```
 
 ## Contributing to autoXAS
+
+If you would like to contribute to autoXAS please follow these steps:
+1. Fork the repository
+2. Make changes in a new branch
+3. Submit a pull request
+
+The changes will be reviewed and merged when they meet quality standards.
+
+### Issues and feature requests
+
+If you encounter any issues while using autoXAS, please report them by opening an issue on the GitHub repository.  Please provide as many details as possible, including steps to reproduce the issue and any error messages you received.
+
+If you have any good ideas or features you're missing, then please suggest them as an Issue with the "enhancement" label on the GitHub repository.
