@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build_sdist:
-    name: Build distributions
+    name: Build source distribution
     runs-on: ubuntu-latest
 
     steps:
@@ -77,9 +77,8 @@ jobs:
     - name: Get build artifacts
       uses: actions/download-artifact@v4
       with:
-        pattern: autoxas-*
         merge-multiple: true  
-        path: dist  
+        path: dist/  
 
     - name: Publish to TestPyPI
       uses: pypa/gh-action-pypi-publish@release/v1
