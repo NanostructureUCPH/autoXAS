@@ -32,7 +32,7 @@ jobs:
         with:
           path: dist/  # Upload the source distribution
 
-  release:
+  pypi-release:
     needs: [build_dist]
     runs-on: ubuntu-latest
     environment:
