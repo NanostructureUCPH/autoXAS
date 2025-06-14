@@ -20,6 +20,7 @@ from larch.xafs import find_e0, pre_edge, fluo_corr
 from larch.xray import xray_edge
 from lmfit import Parameters, minimize
 from sklearn.decomposition import NMF, PCA
+from pymcr.mcr import McrAR
 from tqdm.auto import tqdm
 
 # %% Setup
@@ -1722,6 +1723,17 @@ class autoXAS:
         self.NMF_component_results["Error Change"] = error_change_list
 
         return nmf_k
+
+    def MCR_ALS(self, ):
+        """
+        Perform Multivariate Curve Resolution - Alternating Least Squares (MCR-ALS) on the data.
+
+        This function is a placeholder and does not implement MCR-ALS yet.
+
+        Returns:
+            None: Function does not return anything.
+        """
+        raise NotImplementedError("MCR-ALS is not implemented yet")
 
     # Data export functions
 
