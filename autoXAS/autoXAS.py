@@ -1056,6 +1056,124 @@ class autoXAS:
                 self.excluded_data[experiment].append(measurement)
         return None
 
+    def convert_energy_units(self, energy_unit: str = "eV", unit_conversion_factor: float = 1.0, data_to_convert: str = 'all') -> None:
+        """
+        Convert energy units in the data.
+
+        Args:
+            energy_unit (str, optional): Desired energy unit. Defaults to "eV".
+            unit_conversion_factor (float, optional): Factor to convert energy units. Defaults to 1.0.
+            data_to_convert (str, optional): Specify which data to convert. Options are 'all', 'data', or 'standards'. Defaults to 'all'.
+
+        Returns:
+            None: Function does not return anything.
+        """
+        
+        if self.energy_unit == energy_unit:
+            return
+        if data_to_convert in ['all', 'data']:
+            self.data["Energy"] *= unit_conversion_factor
+        if self.standards is not None and data_to_convert in ['all', 'standards']:
+            self.standards["Energy"] *= unit_conversion_factor
+        elif self.standards is None and data_to_convert in ['all', 'standards']:
+            warnings.warn('No standards loaded. Standards data will not be converted.')
+        
+        self.energy_unit = energy_unit
+        return None
+
+    def homogenize_standards(self, renormalize: bool = True) -> None:
+        """
+        Homogenize standards data to the data energy range.
+
+        Args:
+            renormalize (bool, optional): Whether to renormalize the standards data after homogenization. Defaults to True.
+
+        Returns:
+            None: Function does not return anything.
+        """
+        if self.standards is None:
+            raise ValueError("No standards loaded")
+
+        self.standard_experiments = list(self.standards["Experiment"].unique())
+
+        # Create a new DataFrame to store homogenized standards
+        homogenized_standards = pd.DataFrame()
+
+        for experiment in tqdm(self.standard_experiments, desc="Homogenizing standards", leave=False):
+            experiment_filter = self.standards["Experiment"] == experiment
+            n_measurements = self.standards["Measurement"][experiment_filter].max()
+            metal = self.standards["Metal"][experiment_filter].values[0]
+
+            # Get the energy range of the data
+            data_energy_range = self.data[self.data["Metal"] == metal]["Energy"].unique()
+
+            # Interpolate standards data to the data energy range
+            for measurement in range(1, n_measurements + 1):
+                measurement_filter = (experiment_filter) & (
+                    self.standards["Measurement"] == measurement
+                )
+
+                if renormalize:
+                    # Interpolate unnormalized mu to the data energy range
+                    mu_interpolated = np.interp(
+                        data_energy_range,
+                        self.standards["Energy"][measurement_filter],
+                        self.standards["mu"][measurement_filter],
+                    )
+                    # Append the homogenized data to the new DataFrame
+                    homogenized_standards_i = pd.DataFrame(
+                        {
+                            "File": pd.Series([self.standards["File"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Experiment": pd.Series([experiment] * len(data_energy_range)),
+                            "Metal": pd.Series([metal] * len(data_energy_range)),
+                            "Energy": pd.Series(data_energy_range),
+                            "Temperature": pd.Series([self.standards["Temperature"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Temperature (std)": pd.Series([self.standards["Temperature (std)"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "mu": pd.Series(mu_interpolated),
+                            "Measurement": pd.Series([measurement] * len(data_energy_range)),           
+                        }
+                    )
+                else:
+                    # Interpolate normalized mu to the data energy range
+                    mu_interpolated = np.interp(
+                        data_energy_range,
+                        self.standards["Energy"][measurement_filter],
+                        self.standards["mu"][measurement_filter],
+                    )
+                    mu_norm_interpolated = np.interp(
+                        data_energy_range,
+                        self.standards["Energy"][measurement_filter],
+                        self.standards["mu_norm"][measurement_filter],
+                    )
+                    # Append the homogenized data to the new DataFrame
+                    homogenized_standards_i = pd.DataFrame(
+                        {
+                            "File": pd.Series([self.standards["File"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Experiment": pd.Series([experiment] * len(data_energy_range)),
+                            "Metal": pd.Series([metal] * len(data_energy_range)),
+                            "Energy": pd.Series(data_energy_range),
+                            "Temperature": pd.Series([self.standards["Temperature"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Temperature (std)": pd.Series([self.standards["Temperature (std)"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "mu": pd.Series(mu_interpolated),
+                            "Measurement": pd.Series([measurement] * len(data_energy_range)), 
+                            "mu_norm": pd.Series(mu_norm_interpolated),
+                        }
+                    )
+                # Concatenate the homogenized standards data
+                homogenized_standards = pd.concat(
+                    [homogenized_standards, homogenized_standards_i],
+                    ignore_index=True,
+                )
+            
+        # Update the standards DataFrame with the homogenized data
+        self.standards = homogenized_standards
+
+        # Normalize the homogenized standards data if required
+        if renormalize:
+            self._normalize_data(standards=True)
+
+        return None
+
     def _linear_combination(
         self, weights: Parameters, components: list[np.array]
     ) -> np.array:
@@ -1724,7 +1842,7 @@ class autoXAS:
 
         return nmf_k
 
-    def MCR_ALS(self, ):
+    def MCR_ALS(self):
         """
         Perform Multivariate Curve Resolution - Alternating Least Squares (MCR-ALS) on the data.
 
