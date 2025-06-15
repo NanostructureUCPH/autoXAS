@@ -2038,7 +2038,6 @@ class autoXAS:
 
             # Specify text and formatting of axis labels
             fig.update_layout(
-                # xaxis_range=(self.data[(experiment_filter) & (self.data["Measurement"] == 1)]["Energy"].min(), self.data[(experiment_filter) & (self.data["Measurement"] == 1)]["Energy"].max()),
                 title=title_text,
                 title_x=0.5,
                 xaxis_title=f"<b>Energy [{self.energy_unit}]</b>",
@@ -2050,9 +2049,10 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
+            # fig.for_each_trace(lambda trace: trace.update(visible='legendonly') if trace.name in ["Pt (2)", "Pt (3)", "Pt (4)", "K2PtCl4", "Pt foil"] else (trace.update(visible=True)),) # # Used only for paper figure 
+
+
             # # Set limits of x-axis to match the edge measurements
-            # print(np.amin(self.data[experiment_filter]["Energy"]))
-            # print(np.amax(self.data[experiment_filter]["Energy"]))
             fig.update_xaxes(
                 range=(
                     np.amin(self.data[experiment_filter]["Energy"]),
