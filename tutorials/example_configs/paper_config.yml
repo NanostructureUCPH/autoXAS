@@ -1,0 +1,15 @@
+I0_columns: Ion2
+I1_columns: xmap_roi00
+data_directory: ../Data/HEA2_hcp/
+standards_config: ./example_configs/paper_config_standards.yml
+data_format: .dat
+edges: {Ir: L3, Os: L3, Pt: L3, Rh: K, Ru: K}
+energy_column: ZapEnergy
+energy_column_unitConversion: 1000
+energy_unit: eV
+temperature_unit: °C
+save_directory: ./paper_figures/
+temperature_column: ZBlower2
+xas_mode: Fluorescence
+fluorescence_correction: false
+sample_formula: IrOsPtRhRu
