@@ -20,7 +20,8 @@ from larch.xafs import find_e0, pre_edge, fluo_corr
 from larch.xray import xray_edge
 from lmfit import Parameters, minimize
 from sklearn.decomposition import NMF, PCA
-from pymcr.mcr import McrAR
+
+# from pymcr.mcr import McrAR
 from tqdm.auto import tqdm
 
 # %% Setup
@@ -219,7 +220,9 @@ class autoXAS:
                 ]:
                     raise ValueError("Invalid XAS mode")
             if "fluorescence_correction" in config:
-                self.fluorescence_correction_standards = config["fluorescence_correction"]
+                self.fluorescence_correction_standards = config[
+                    "fluorescence_correction"
+                ]
             if "energy_unit" in config:
                 self.energy_unit_standards = config["energy_unit"]
             if "energy_column_unitConversion" in config:
@@ -541,23 +544,28 @@ class autoXAS:
 
         if self.edges is None or self.edges == {}:
             raise ValueError("No edges specified for fluorescence correction")
-        
+
         if self.formula is None or self.formula == "":
             raise ValueError("No formula specified for fluorescence correction")
 
         # dataframe["mu_corr"] = 0.0  # Initialize corrected mu column
 
-        for experiment in tqdm(experiments, desc="Fluorescence correction", leave=False):
+        for experiment in tqdm(
+            experiments, desc="Fluorescence correction", leave=False
+        ):
             experiment_filter = dataframe["Experiment"] == experiment
             n_measurements = dataframe["Measurement"][experiment_filter].max()
-            
+
             formula = experiment if standards else self.formula
             if "acac" in formula:
                 formula = formula.replace("acac", "C5H7O2")
             element = dataframe["Metal"][experiment_filter].values[0]
-            edge = self.edges.get(dataframe["Metal"][(experiment_filter) & (
-                    dataframe["Measurement"] == 1
-                )].values[0], "K")
+            edge = self.edges.get(
+                dataframe["Metal"][
+                    (experiment_filter) & (dataframe["Measurement"] == 1)
+                ].values[0],
+                "K",
+            )
 
             # Apply fluorescence correction
             for measurement in range(1, n_measurements + 1):
@@ -577,7 +585,7 @@ class autoXAS:
                 )
 
                 dataframe["mu"][measurement_filter] = dummy_group.mu_corr
-            
+
         # Update the dataframe with the corrected data
         if standards:
             self.standards = dataframe
@@ -586,7 +594,6 @@ class autoXAS:
             self.data = dataframe
 
         return None
-
 
     def _calculate_edge_shift(self, edges: dict, standards: bool = False) -> None:
         """
@@ -612,17 +619,17 @@ class autoXAS:
                 if self.energy_unit == "keV":
                     edge_energy_table /= 1000  # Convert eV to keV
                 elif self.energy_unit != "eV":
-                    raise ValueError(
-                        "Invalid energy unit. Must be 'eV' or 'keV'."
-                    )
+                    raise ValueError("Invalid energy unit. Must be 'eV' or 'keV'.")
                 if metal in experiments:
                     experiment_filter = dataframe["Experiment"] == metal
-                elif dataframe['Experiment'].str.contains(metal).any():
+                elif dataframe["Experiment"].str.contains(metal).any():
                     continue
                 else:
                     continue
 
-                for measurement in range(1, dataframe["Measurement"][experiment_filter].max() + 1):
+                for measurement in range(
+                    1, dataframe["Measurement"][experiment_filter].max() + 1
+                ):
                     try:
                         measurement_filter = (experiment_filter) & (
                             dataframe["Measurement"] == measurement
@@ -1010,7 +1017,10 @@ class autoXAS:
                 )
             else:
                 raise ValueError('Invalid average. Must be "standard" or "periodic".')
-        if self.fluorescence_correction_standards and self.xas_mode_standards == "Fluorescence":
+        if (
+            self.fluorescence_correction_standards
+            and self.xas_mode_standards == "Fluorescence"
+        ):
             self._fluorescence_correction(standards=True)
         if (self.edges is not None) or (self.edges != {}):
             self._calculate_edge_shift(self.edges, standards=True)
@@ -1056,7 +1066,12 @@ class autoXAS:
                 self.excluded_data[experiment].append(measurement)
         return None
 
-    def convert_energy_units(self, energy_unit: str = "eV", unit_conversion_factor: float = 1.0, data_to_convert: str = 'all') -> None:
+    def convert_energy_units(
+        self,
+        energy_unit: str = "eV",
+        unit_conversion_factor: float = 1.0,
+        data_to_convert: str = "all",
+    ) -> None:
         """
         Convert energy units in the data.
 
@@ -1068,16 +1083,16 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
-        
+
         if self.energy_unit == energy_unit:
             return
-        if data_to_convert in ['all', 'data']:
+        if data_to_convert in ["all", "data"]:
             self.data["Energy"] *= unit_conversion_factor
-        if self.standards is not None and data_to_convert in ['all', 'standards']:
+        if self.standards is not None and data_to_convert in ["all", "standards"]:
             self.standards["Energy"] *= unit_conversion_factor
-        elif self.standards is None and data_to_convert in ['all', 'standards']:
-            warnings.warn('No standards loaded. Standards data will not be converted.')
-        
+        elif self.standards is None and data_to_convert in ["all", "standards"]:
+            warnings.warn("No standards loaded. Standards data will not be converted.")
+
         self.energy_unit = energy_unit
         return None
 
@@ -1099,13 +1114,17 @@ class autoXAS:
         # Create a new DataFrame to store homogenized standards
         homogenized_standards = pd.DataFrame()
 
-        for experiment in tqdm(self.standard_experiments, desc="Homogenizing standards", leave=False):
+        for experiment in tqdm(
+            self.standard_experiments, desc="Homogenizing standards", leave=False
+        ):
             experiment_filter = self.standards["Experiment"] == experiment
             n_measurements = self.standards["Measurement"][experiment_filter].max()
             metal = self.standards["Metal"][experiment_filter].values[0]
 
             # Get the energy range of the data
-            data_energy_range = self.data[self.data["Metal"] == metal]["Energy"].unique()
+            data_energy_range = self.data[self.data["Metal"] == metal][
+                "Energy"
+            ].unique()
 
             # Interpolate standards data to the data energy range
             for measurement in range(1, n_measurements + 1):
@@ -1123,14 +1142,35 @@ class autoXAS:
                     # Append the homogenized data to the new DataFrame
                     homogenized_standards_i = pd.DataFrame(
                         {
-                            "File": pd.Series([self.standards["File"][measurement_filter].values[0]] * len(data_energy_range)),
-                            "Experiment": pd.Series([experiment] * len(data_energy_range)),
+                            "File": pd.Series(
+                                [self.standards["File"][measurement_filter].values[0]]
+                                * len(data_energy_range)
+                            ),
+                            "Experiment": pd.Series(
+                                [experiment] * len(data_energy_range)
+                            ),
                             "Metal": pd.Series([metal] * len(data_energy_range)),
                             "Energy": pd.Series(data_energy_range),
-                            "Temperature": pd.Series([self.standards["Temperature"][measurement_filter].values[0]] * len(data_energy_range)),
-                            "Temperature (std)": pd.Series([self.standards["Temperature (std)"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Temperature": pd.Series(
+                                [
+                                    self.standards["Temperature"][
+                                        measurement_filter
+                                    ].values[0]
+                                ]
+                                * len(data_energy_range)
+                            ),
+                            "Temperature (std)": pd.Series(
+                                [
+                                    self.standards["Temperature (std)"][
+                                        measurement_filter
+                                    ].values[0]
+                                ]
+                                * len(data_energy_range)
+                            ),
                             "mu": pd.Series(mu_interpolated),
-                            "Measurement": pd.Series([measurement] * len(data_energy_range)),           
+                            "Measurement": pd.Series(
+                                [measurement] * len(data_energy_range)
+                            ),
                         }
                     )
                 else:
@@ -1148,14 +1188,35 @@ class autoXAS:
                     # Append the homogenized data to the new DataFrame
                     homogenized_standards_i = pd.DataFrame(
                         {
-                            "File": pd.Series([self.standards["File"][measurement_filter].values[0]] * len(data_energy_range)),
-                            "Experiment": pd.Series([experiment] * len(data_energy_range)),
+                            "File": pd.Series(
+                                [self.standards["File"][measurement_filter].values[0]]
+                                * len(data_energy_range)
+                            ),
+                            "Experiment": pd.Series(
+                                [experiment] * len(data_energy_range)
+                            ),
                             "Metal": pd.Series([metal] * len(data_energy_range)),
                             "Energy": pd.Series(data_energy_range),
-                            "Temperature": pd.Series([self.standards["Temperature"][measurement_filter].values[0]] * len(data_energy_range)),
-                            "Temperature (std)": pd.Series([self.standards["Temperature (std)"][measurement_filter].values[0]] * len(data_energy_range)),
+                            "Temperature": pd.Series(
+                                [
+                                    self.standards["Temperature"][
+                                        measurement_filter
+                                    ].values[0]
+                                ]
+                                * len(data_energy_range)
+                            ),
+                            "Temperature (std)": pd.Series(
+                                [
+                                    self.standards["Temperature (std)"][
+                                        measurement_filter
+                                    ].values[0]
+                                ]
+                                * len(data_energy_range)
+                            ),
                             "mu": pd.Series(mu_interpolated),
-                            "Measurement": pd.Series([measurement] * len(data_energy_range)), 
+                            "Measurement": pd.Series(
+                                [measurement] * len(data_energy_range)
+                            ),
                             "mu_norm": pd.Series(mu_norm_interpolated),
                         }
                     )
@@ -1164,7 +1225,7 @@ class autoXAS:
                     [homogenized_standards, homogenized_standards_i],
                     ignore_index=True,
                 )
-            
+
         # Update the standards DataFrame with the homogenized data
         self.standards = homogenized_standards
 
@@ -1839,7 +1900,7 @@ class autoXAS:
             nmf_k.append(k)
 
         self.NMF_component_results["Error Change"] = error_change_list
-
+        
         return nmf_k
 
     def MCR_ALS(self):
@@ -2049,8 +2110,7 @@ class autoXAS:
                 hovermode=hovermode,
             )
 
-            # fig.for_each_trace(lambda trace: trace.update(visible='legendonly') if trace.name in ["Pt (2)", "Pt (3)", "Pt (4)", "K2PtCl4", "Pt foil"] else (trace.update(visible=True)),) # # Used only for paper figure 
-
+            # fig.for_each_trace(lambda trace: trace.update(visible='legendonly') if trace.name in ["Pt (2)", "Pt (3)", "Pt (4)", "K2PtCl4", "Pt foil"] else (trace.update(visible=True)),) # # Used only for paper figure
 
             # # Set limits of x-axis to match the edge measurements
             fig.update_xaxes(
@@ -3431,6 +3491,7 @@ class autoXAS:
         show_title: bool = True,
         figure_size: Union[tuple[int, int], str] = "auto",
         font_size: int = 14,
+        return_df: bool = False,
     ):
         """
         Plot the explained variance of Principal Component Analysis (PCA) for all experiments.
@@ -3448,6 +3509,7 @@ class autoXAS:
             show_title (bool, optional): Whether to show the title. Defaults to True.
             figure_size (Union[tuple[int, int], str], optional): Size of the figure. Defaults to "auto".
             font_size (int, optional): Size of the font. Defaults to 14.
+            return_df (bool, optional): Whether to return the DataFrame with PCA results. Defaults to False.
 
         Raises:
             ValueError: Invalid plot type.
@@ -3650,7 +3712,10 @@ class autoXAS:
         else:
             raise NotImplementedError("Matplotlib plot not implemented yet")
 
-        return None
+        if return_df:
+            return pca_results
+        else:
+            return None
 
     def plot_NMF(
         self,

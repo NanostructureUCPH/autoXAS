@@ -1,0 +1,11 @@
+I0_columns: Ion2
+I1_columns: xmap_roi00
+data_directory: ../Data/HEA2_hcp_Pt_Standards/
+data_format: .dat
+energy_column: ZapEnergy
+energy_column_unitConversion: 1000
+energy_unit: eV
+temperature_unit: °C
+temperature_column: ZBlower2
+xas_mode: Fluorescence
+fluorescence_correction: false
