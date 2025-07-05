@@ -5,7 +5,7 @@ Welcome to the autoXAS documentation!
 This documentation provides an overview of the autoXAS package, including installation instructions and API details.
 
 .. toctree::
-   :maxdepth: 1
+   :maxdepth: 2
    :caption: Contents:
 
    installation

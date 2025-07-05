@@ -1,9 +1,7 @@
 autoXAS
 ===============
 
-.. .. autoclass:: autoXAS.autoXAS.autoXAS
-..     :members:
-
+.. _api:
 
 
 .. autosummary::
