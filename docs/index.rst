@@ -10,7 +10,9 @@ This documentation provides an overview of the autoXAS package, including instal
 
    installation
    usage
-   api
+   source/modules
+   source/autoXAS
+
 
 
 
