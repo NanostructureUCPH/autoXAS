@@ -8,7 +8,6 @@ This documentation provides an overview of the autoXAS package, including instal
    :maxdepth: 2
    :caption: Contents:
 
-   installation
    api
 
 
