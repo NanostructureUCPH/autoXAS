@@ -132,6 +132,12 @@ class autoXAS:
         self.energy_column_unitConversion_standards = 1
         self.temperature_unit_standards = "K"
 
+        # Analysis dataframes
+        self.LCA_result = None
+        self.PCA_result = None
+        self.NMF_result = None
+        self.NMF_component_results = None
+
     def save_config(
         self, config_name: str, save_directory: str = "./", standards: bool = False
     ) -> None:
@@ -4195,6 +4201,9 @@ class autoXAS:
         Returns:
             None: Function does not return anything.
         """
+
+        if self.NMF_component_results is None:
+            _ = self._determine_NMF_components(change_cutoff=change_cutoff)
 
         if self.interactive:
             # Formatting for hover text
