@@ -29,6 +29,7 @@ dependencies = [
     "lmfit>=1.0.0",
     "scikit-learn",
     "tqdm",
+    "jupyter",
 ]
 
 [project.urls]
