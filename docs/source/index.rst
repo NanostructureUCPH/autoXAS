@@ -1,14 +1,21 @@
-.. Configuration file for the Sphinx documentation builder.
+.. autoXAS documentation master file
 
 Welcome to the autoXAS documentation!
 ===========================================
+docs/index.rst
 
-**autoXAS** is a Python library for easy and quick analysis of time-resolved X-ray absorption spectroscopy (XAS) data.
-
-Contents
---------
 .. toctree::
+   :maxdepth: 2
+   :caption: Contents:
 
    installation
-
    api
+
+
+
+..   Indices and tables
+   ==================
+
+   * :ref:`genindex`
+   * :ref:`modindex`
+   * :ref:`search`

@@ -1,7 +1,5 @@
-autoXAS API
-===
+autoXAS
+===============
 
-.. autosummary::
-   :toctree: generated
-
-   autoXAS
+.. autoclass:: autoXAS.autoXAS
+    :members:
