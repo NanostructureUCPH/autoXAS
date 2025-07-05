@@ -5,7 +5,6 @@ autoXAS
 
 .. autosummary::
    :toctree: generated
-   :recursive:
    :member-order: bysource
 
    autoXAS.autoXAS.autoXAS
