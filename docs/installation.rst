@@ -9,15 +9,14 @@ Prerequisites
 **autoXAS** requires python >= 3.7. 
 
 If needed, create a new environment with a compatible python version:
+
 .. code-block:: console
     :caption: Create a new conda environment with your desired python version
     :linenos:
-    conda create -n autoXAS_env python=3.10
+    $ conda create -n autoXAS_env python=3.10
 
 .. code-block:: console
-    :caption: Activate the conda environment
-    :linenos:
-    conda activate autoXAS_env
+    $ conda activate autoXAS_env
 
 Install with pip
 -----------------
