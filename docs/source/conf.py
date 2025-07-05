@@ -1,13 +1,16 @@
 # Configuration file for the Sphinx documentation builder.
 
+import os
+import sys
+sys.path.insert(0, os.path.abspath('..'))
+
+import sphinx_rtd_theme
+
 # -- Project information
 
 project = 'autoXAS'
 copyright = '2025, Ulrik Friis-Jensen'
 author = 'Ulrik Friis-Jensen'
-
-release = '0.4'
-version = '0.4.0'
 
 # -- General configuration
 
@@ -17,7 +20,9 @@ extensions = [
 ]
 
 templates_path = ['_templates']
+exclude_patterns = ['build', 'Thumbs.db', '.DS_Store']
 
 # -- Options for HTML output
 
 html_theme = 'sphinx_rtd_theme'
+html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
