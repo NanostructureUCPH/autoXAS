@@ -24,12 +24,15 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx.ext.apidoc',
+    "sphinx_markdown_builder",
 ]
 
 templates_path = ['_templates']
 
 apidoc_module_dir = '../autoXAS'
 apidoc_separate_modules = True
+
+source_suffix = ['.rst', '.md']
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = 'sphinx'
