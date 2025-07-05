@@ -8,7 +8,7 @@ This documentation provides an overview of the autoXAS package, including instal
    :maxdepth: 2
    :caption: Contents:
 
-   readme
+   readme_link
    source/modules
    .. source/autoXAS
 
