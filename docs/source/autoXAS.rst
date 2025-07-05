@@ -1,6 +1,3 @@
-autoXAS package
-===============
-
 autoXAS.autoXAS module
 ----------------------
 

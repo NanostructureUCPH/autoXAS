@@ -1,4 +1,4 @@
-autoXAS
+autoXAS API
 =======
 
 .. toctree::

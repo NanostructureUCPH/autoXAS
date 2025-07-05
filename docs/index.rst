@@ -10,10 +10,6 @@ This documentation provides an overview of the autoXAS package, including instal
 
    readme_link
    source/modules
-   .. source/autoXAS
-
-   .. installation
-   .. usage
    
 
 
