@@ -16,10 +16,6 @@ project = 'autoXAS'
 copyright = '2025, Ulrik Friis-Jensen'
 author = 'Ulrik Friis-Jensen'
 
-version = '.'.join( autoXAS.__version__.split('.')[:2] )
-# The full version, including alpha/beta/rc tags.
-release = autoXAS.__version__
-
 # -- General configuration
 
 extensions = [
