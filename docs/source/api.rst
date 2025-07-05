@@ -1,5 +1,5 @@
 autoXAS
 ===============
 
-.. autoclass:: autoXAS.autoXAS
+.. autoclass:: autoXAS.autoXAS.autoXAS
     :members:

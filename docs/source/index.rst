@@ -2,7 +2,7 @@
 
 Welcome to the autoXAS documentation!
 ===========================================
-docs/index.rst
+This documentation provides an overview of the autoXAS package, including installation instructions and API details.
 
 .. toctree::
    :maxdepth: 2
