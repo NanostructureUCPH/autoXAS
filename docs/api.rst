@@ -4,10 +4,12 @@ autoXAS
 .. .. autoclass:: autoXAS.autoXAS.autoXAS
 ..     :members:
 
+
+
 .. autosummary::
-    :caption: API Reference
-   :toctree: _build
+   :toctree:
    :recursive:
    :member-order: bysource
+   :autosummary_generate: True
 
-   autoXAS
+   autoXAS.autoXAS.autoXAS

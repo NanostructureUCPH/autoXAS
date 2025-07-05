@@ -13,6 +13,7 @@ If needed, create a new environment with a compatible python version:
 ::
     conda create -n autoXAS_env python=3.10
 
+Activate the environment before installing **autoXAS**:
 ::
     conda activate autoXAS_env
 
