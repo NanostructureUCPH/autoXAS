@@ -6,7 +6,8 @@ autoXAS
 
 .. autosummary::
     :caption: API Reference
-   :toctree: generated
-   :maxdepth: 3
+   :toctree: _build
+   :recursive:
+   :member-order: bysource
 
-   autoXAS.autoXAS.autoXAS
+   autoXAS
