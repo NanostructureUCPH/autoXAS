@@ -18,7 +18,6 @@ author = 'Ulrik Friis-Jensen'
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
-    "nbsphinx",
 ]
 
 templates_path = ['_templates']
