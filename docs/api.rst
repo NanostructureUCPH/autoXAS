@@ -3,11 +3,9 @@ autoXAS
 
 .. _api:
 
-
 .. autosummary::
-   :toctree:
+   :toctree: generated
    :recursive:
    :member-order: bysource
-   :autosummary_generate: True
 
    autoXAS.autoXAS.autoXAS
