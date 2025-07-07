@@ -1,6 +1,8 @@
 ![autoXAS_logo](https://github.com/UlrikFriisJensen/autoXAS/raw/main/figures/autoXAS_logo.svg)
 # Automated analysis of X-ray Absorption Spectroscopy (XAS) data
 
+[![PyPI - Version](https://img.shields.io/pypi/v/autoXAS)](https://pypi.org/project/autoXAS/)
+[![Read the Docs](https://img.shields.io/readthedocs/autoXAS)](https://autoxas.readthedocs.io/en/stable/index.html)
 
 
 1. [Installation](#installation)
