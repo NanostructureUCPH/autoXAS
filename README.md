@@ -55,7 +55,17 @@ See paper for example use.
 
 If you use the autoXAS package, please cite our paper:
 ```
-Paper in preperation.
+@misc{friis-jensen_autoxas_2025,
+	title = {{autoXAS}: {Automated} {Analysis} of {X}-ray {Absorption} {Spectroscopy} {Data}},
+	shorttitle = {{autoXAS}},
+	url = {https://chemrxiv.org/engage/chemrxiv/article-details/68c019983e708a7649f432de},
+	doi = {10.26434/chemrxiv-2025-8pjq3},
+	language = {en},
+	publisher = {ChemRxiv},
+	author = {Friis-Jensen, Ulrik and Jensen, Kirsten Marie Ørnsbjerg and Pittkowski, Rebecca},
+	month = sep,
+	year = {2025},
+}
 ```
 
 ## Issues and feature requests
