@@ -1,5 +1,6 @@
 [![PyPI - Version](https://img.shields.io/pypi/v/autoXAS)](https://pypi.org/project/autoXAS/)
 [![Read the Docs](https://img.shields.io/readthedocs/autoXAS)](https://autoxas.readthedocs.io/en/stable/index.html)
+[![ChemRxiv](https://img.shields.io/badge/ChemRxiv-10.26434/chemrxiv--2025--8pjq3-blue)](https://doi.org/10.26434/chemrxiv-2025-8pjq3)
 
 ![autoXAS_logo](https://github.com/UlrikFriisJensen/autoXAS/raw/main/figures/autoXAS_logo.svg)
 # Automated analysis of X-ray Absorption Spectroscopy (XAS) data
@@ -55,7 +56,17 @@ See paper for example use.
 
 If you use the autoXAS package, please cite our paper:
 ```
-Paper in preperation.
+@misc{friis-jensen_autoxas_2025,
+	title = {{autoXAS}: {Automated} {Analysis} of {X}-ray {Absorption} {Spectroscopy} {Data}},
+	shorttitle = {{autoXAS}},
+	url = {https://chemrxiv.org/engage/chemrxiv/article-details/68c019983e708a7649f432de},
+	doi = {10.26434/chemrxiv-2025-8pjq3},
+	language = {en},
+	publisher = {ChemRxiv},
+	author = {Friis-Jensen, Ulrik and Jensen, Kirsten Marie Ørnsbjerg and Pittkowski, Rebecca},
+	month = sep,
+	year = {2025},
+}
 ```
 
 ## Issues and feature requests
