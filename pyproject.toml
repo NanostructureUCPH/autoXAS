@@ -34,7 +34,7 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://github.com/UlrikFriisJensen/autoXAS"
-"Documentation" = "https://autoxas.readthedocs.io/en/stable/index.html"
+"Documentation" = "https://autoxas.readthedocs.io/en/latest/"
 "Source" = "https://github.com/UlrikFriisJensen/autoXAS/tree/main/autoXAS"
 "Bug Tracker" = "https://github.com/UlrikFriisJensen/autoXAS/issues"
 
